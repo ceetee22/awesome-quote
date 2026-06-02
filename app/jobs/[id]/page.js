@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useJob } from '@/lib/job-context'
 import { useSettings } from '@/lib/settings-context'
@@ -154,10 +154,17 @@ function formatScheduledDateTime(date, time) {
 export default function JobDetailPage() {
   const params = useParams()
   const router = useRouter()
-  const { currentJob, setCurrentJob } = useJob()
+  const { jobs, currentJob, setCurrentJob, selectJob } = useJob()
   const { settings } = useSettings()
 
   const scheduleRef = useRef(null)
+
+  // When navigating directly to a job (e.g. from the quotes list), select it
+  useEffect(() => {
+    const match = jobs.find((j) => j.id === params.id)
+    if (match) selectJob(params.id)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.id])
 
   const [scheduledDate, setScheduledDate] = useState(currentJob?.scheduled_date || '')
   const [scheduledTime, setScheduledTime] = useState(currentJob?.scheduled_time || '')
