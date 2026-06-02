@@ -1,0 +1,265 @@
+/*
+ * Awesome Quote -- Design Tokens v1.1
+ * Drop this into your global CSS or Tailwind config.
+ * All colours, typography, spacing, and component tokens for the app.
+ */
+
+:root {
+  /* =============================================
+     BRAND COLOURS
+     ============================================= */
+
+  /* Primary -- go green */
+  --aq-green: #22A67A;
+  --aq-green-hover: #1B8F6A;
+  --aq-green-pressed: #147A5A;
+  --aq-green-tint: #E6F7F0;
+  --aq-green-tint-border: #C5E8D5;
+
+  /* Accent -- gold (celebrations, money moments) */
+  --aq-gold: #F0B542;
+  --aq-gold-hover: #D9A03A;
+  --aq-gold-tint: #FEF7E6;
+  --aq-gold-tint-border: #F5E2B0;
+
+  /* Neutrals */
+  --aq-ink: #1F2D37;
+  --aq-muted: #4A5B68;
+  --aq-subtle: #8CA3A0;
+  --aq-border: #E4EAE8;
+  --aq-surface: #F6F8F7;
+  --aq-white: #FFFFFF;
+
+  /* Semantic */
+  --aq-info: #3B82D6;
+  --aq-info-tint: #E8F1FB;
+  --aq-info-tint-border: #B5D4F4;
+  --aq-error: #D94444;
+  --aq-error-tint: #FEF0F0;
+  --aq-error-tint-border: #F5C5C5;
+
+  /* =============================================
+     STATUS BADGE COLOURS (solid, bold, instant read)
+     ============================================= */
+
+  /* Draft */
+  --aq-status-draft-bg: #E4EAE8;
+  --aq-status-draft-text: #4A5B68;
+
+  /* Awaiting */
+  --aq-status-awaiting-bg: #E8940D;
+  --aq-status-awaiting-text: #FFFFFF;
+
+  /* Accepted */
+  --aq-status-accepted-bg: #22A67A;
+  --aq-status-accepted-text: #FFFFFF;
+
+  /* Scheduled */
+  --aq-status-scheduled-bg: #3B82D6;
+  --aq-status-scheduled-text: #FFFFFF;
+
+  /* Ordered */
+  --aq-status-ordered-bg: #7B5CC3;
+  --aq-status-ordered-text: #FFFFFF;
+
+  /* Completed (same as accepted, pair with tick icon) */
+  --aq-status-completed-bg: #22A67A;
+  --aq-status-completed-text: #FFFFFF;
+
+  /* Invoiced */
+  --aq-status-invoiced-bg: #1F2D37;
+  --aq-status-invoiced-text: #FFFFFF;
+
+  /* Custom (item type badge) */
+  --aq-status-custom-bg: #E4EAE8;
+  --aq-status-custom-text: #1F2D37;
+
+  /* =============================================
+     TYPOGRAPHY (sized for tradies 40+)
+     ============================================= */
+
+  --aq-font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  --aq-font-weight-regular: 400;
+  --aq-font-weight-medium: 500;
+
+  /* Type scale -- nothing below 14px */
+  --aq-text-display: 34px;       /* Quote totals, hero numbers */
+  --aq-text-page-title: 28px;    /* Page titles */
+  --aq-text-section: 22px;       /* Section headings */
+  --aq-text-body: 18px;          /* Body text, labels, input text */
+  --aq-text-button: 17px;        /* Button labels */
+  --aq-text-secondary: 16px;     /* Descriptions, addresses, helper text */
+  --aq-text-caption: 14px;       /* Badges, captions (absolute minimum) */
+
+  /* Line heights */
+  --aq-leading-tight: 1.1;       /* Display numbers */
+  --aq-leading-heading: 1.2;     /* Page titles */
+  --aq-leading-subheading: 1.3;  /* Section headings */
+  --aq-leading-body: 1.5;        /* Body and secondary text */
+
+  /* =============================================
+     SPACING
+     ============================================= */
+
+  --aq-space-xs: 4px;
+  --aq-space-sm: 8px;
+  --aq-space-md: 12px;
+  --aq-space-lg: 16px;
+  --aq-space-xl: 24px;
+  --aq-space-2xl: 32px;
+
+  /* =============================================
+     BORDERS AND RADII
+     ============================================= */
+
+  --aq-radius-sm: 6px;    /* Small pills */
+  --aq-radius-md: 8px;    /* Badges, inputs */
+  --aq-radius-lg: 10px;   /* Buttons */
+  --aq-radius-xl: 12px;   /* Cards */
+  --aq-radius-icon: 18px; /* App icon */
+
+  --aq-border-width: 0.5px;
+  --aq-border-color: var(--aq-border);
+
+  /* =============================================
+     SHADOWS AND OVERLAYS
+     ============================================= */
+
+  --aq-overlay: rgba(31, 45, 55, 0.5);  /* Ink at 50% for confirm modals */
+
+  /* =============================================
+     COMPONENT TOKENS
+     ============================================= */
+
+  /* Buttons */
+  --aq-btn-min-height: 48px;
+  --aq-btn-padding-x: 24px;
+  --aq-btn-padding-y: 12px;
+  --aq-btn-radius: var(--aq-radius-lg);
+  --aq-btn-font-size: var(--aq-text-button);
+  --aq-btn-font-weight: var(--aq-font-weight-medium);
+
+  /* Primary button */
+  --aq-btn-primary-bg: var(--aq-green);
+  --aq-btn-primary-bg-hover: var(--aq-green-hover);
+  --aq-btn-primary-bg-active: var(--aq-green-pressed);
+  --aq-btn-primary-text: var(--aq-white);
+
+  /* Secondary button */
+  --aq-btn-secondary-bg: var(--aq-white);
+  --aq-btn-secondary-bg-hover: var(--aq-surface);
+  --aq-btn-secondary-text: var(--aq-ink);
+  --aq-btn-secondary-border: var(--aq-border);
+
+  /* Destructive button */
+  --aq-btn-destructive-bg: var(--aq-white);
+  --aq-btn-destructive-bg-hover: var(--aq-error-tint);
+  --aq-btn-destructive-text: var(--aq-error);
+  --aq-btn-destructive-border: var(--aq-error-tint-border);
+
+  /* Gold / celebration button */
+  --aq-btn-gold-bg: var(--aq-gold);
+  --aq-btn-gold-bg-hover: var(--aq-gold-hover);
+  --aq-btn-gold-text: var(--aq-ink);
+
+  /* Cards */
+  --aq-card-bg: var(--aq-white);
+  --aq-card-border: var(--aq-border);
+  --aq-card-radius: var(--aq-radius-xl);
+  --aq-card-padding: var(--aq-space-lg);
+  --aq-card-gap: 10px;
+
+  /* Inputs */
+  --aq-input-bg: var(--aq-white);
+  --aq-input-border: var(--aq-border);
+  --aq-input-border-focus: var(--aq-green);
+  --aq-input-radius: var(--aq-radius-md);
+  --aq-input-min-height: 48px;
+  --aq-input-font-size: var(--aq-text-body); /* 18px -- large enough to read */
+
+  /* Badges */
+  --aq-badge-radius: var(--aq-radius-md);
+  --aq-badge-padding-x: 14px;
+  --aq-badge-padding-y: 6px;
+  --aq-badge-font-size: var(--aq-text-caption);
+  --aq-badge-font-weight: var(--aq-font-weight-medium);
+
+  /* Page */
+  --aq-page-bg: var(--aq-surface);
+  --aq-page-max-width: 480px;
+}
+
+
+/* =============================================
+   TAILWIND EXTEND REFERENCE
+   =============================================
+
+   If using Tailwind, add these to tailwind.config.js:
+
+   module.exports = {
+     theme: {
+       extend: {
+         colors: {
+           aq: {
+             green: {
+               DEFAULT: '#22A67A',
+               hover: '#1B8F6A',
+               pressed: '#147A5A',
+               tint: '#E6F7F0',
+             },
+             gold: {
+               DEFAULT: '#F0B542',
+               hover: '#D9A03A',
+               tint: '#FEF7E6',
+             },
+             ink: '#1F2D37',
+             muted: '#4A5B68',
+             subtle: '#8CA3A0',
+             border: '#E4EAE8',
+             surface: '#F6F8F7',
+             error: '#D94444',
+             info: '#3B82D6',
+             // Status badge backgrounds
+             status: {
+               draft: '#E4EAE8',
+               awaiting: '#E8940D',
+               accepted: '#22A67A',
+               scheduled: '#3B82D6',
+               ordered: '#7B5CC3',
+               invoiced: '#1F2D37',
+             },
+           },
+         },
+         fontFamily: {
+           sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+         },
+         fontSize: {
+           'display': ['34px', { lineHeight: '1.1', fontWeight: '500' }],
+           'page-title': ['28px', { lineHeight: '1.2', fontWeight: '500' }],
+           'section': ['22px', { lineHeight: '1.3', fontWeight: '500' }],
+           'body': ['18px', { lineHeight: '1.5', fontWeight: '400' }],
+           'btn': ['17px', { lineHeight: '1', fontWeight: '500' }],
+           'secondary': ['16px', { lineHeight: '1.5', fontWeight: '400' }],
+           'caption': ['14px', { lineHeight: '1', fontWeight: '500' }],
+         },
+         borderRadius: {
+           'aq-sm': '6px',
+           'aq-md': '8px',
+           'aq-lg': '10px',
+           'aq-xl': '12px',
+         },
+         minHeight: {
+           'tap': '48px',
+         },
+         spacing: {
+           'aq-xs': '4px',
+           'aq-sm': '8px',
+           'aq-md': '12px',
+           'aq-lg': '16px',
+           'aq-xl': '24px',
+           'aq-2xl': '32px',
+         },
+       },
+     },
+   };
+*/
