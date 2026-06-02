@@ -1,0 +1,109 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Primary -- go green */
+  --aq-green: #22A67A;
+  --aq-green-hover: #1B8F6A;
+  --aq-green-pressed: #147A5A;
+  --aq-green-tint: #E6F7F0;
+  --aq-green-tint-border: #C5E8D5;
+
+  /* Accent -- gold */
+  --aq-gold: #F0B542;
+  --aq-gold-hover: #D9A03A;
+  --aq-gold-tint: #FEF7E6;
+  --aq-gold-tint-border: #F5E2B0;
+
+  /* Neutrals */
+  --aq-ink: #1F2D37;
+  --aq-muted: #4A5B68;
+  --aq-subtle: #8CA3A0;
+  --aq-border: #E4EAE8;
+  --aq-surface: #F6F8F7;
+  --aq-white: #FFFFFF;
+
+  /* Semantic */
+  --aq-info: #3B82D6;
+  --aq-info-tint: #E8F1FB;
+  --aq-info-tint-border: #B5D4F4;
+  --aq-error: #D94444;
+  --aq-error-tint: #FEF0F0;
+  --aq-error-tint-border: #F5C5C5;
+
+  /* Status badges */
+  --aq-status-draft-bg: #E4EAE8;
+  --aq-status-draft-text: #4A5B68;
+  --aq-status-awaiting-bg: #E8940D;
+  --aq-status-awaiting-text: #FFFFFF;
+  --aq-status-accepted-bg: #22A67A;
+  --aq-status-accepted-text: #FFFFFF;
+  --aq-status-scheduled-bg: #3B82D6;
+  --aq-status-scheduled-text: #FFFFFF;
+  --aq-status-ordered-bg: #7B5CC3;
+  --aq-status-ordered-text: #FFFFFF;
+  --aq-status-completed-bg: #22A67A;
+  --aq-status-completed-text: #FFFFFF;
+  --aq-status-invoiced-bg: #1F2D37;
+  --aq-status-invoiced-text: #FFFFFF;
+  --aq-status-custom-bg: #E4EAE8;
+  --aq-status-custom-text: #1F2D37;
+
+  /* Typography */
+  --aq-font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  --aq-font-weight-regular: 400;
+  --aq-font-weight-medium: 500;
+
+  /* Type scale */
+  --aq-text-display: 34px;
+  --aq-text-page-title: 28px;
+  --aq-text-section: 22px;
+  --aq-text-body: 18px;
+  --aq-text-button: 17px;
+  --aq-text-secondary: 16px;
+  --aq-text-caption: 14px;
+
+  /* Spacing */
+  --aq-space-xs: 4px;
+  --aq-space-sm: 8px;
+  --aq-space-md: 12px;
+  --aq-space-lg: 16px;
+  --aq-space-xl: 24px;
+  --aq-space-2xl: 32px;
+
+  /* Radii */
+  --aq-radius-sm: 6px;
+  --aq-radius-md: 8px;
+  --aq-radius-lg: 10px;
+  --aq-radius-xl: 12px;
+  --aq-radius-icon: 18px;
+
+  /* Component tokens */
+  --aq-btn-min-height: 48px;
+  --aq-btn-padding-x: 24px;
+  --aq-btn-padding-y: 12px;
+  --aq-overlay: rgba(31, 45, 55, 0.5);
+  --aq-page-bg: var(--aq-surface);
+  --aq-page-max-width: 480px;
+}
+
+@layer base {
+  html {
+    font-family: var(--aq-font-family);
+    font-size: 18px;
+    color: var(--aq-ink);
+    background-color: var(--aq-surface);
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--aq-surface);
+    color: var(--aq-ink);
+    min-height: 100dvh;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+}
