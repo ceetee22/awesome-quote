@@ -9,27 +9,10 @@ import { MOCK_PARTS } from '@/lib/mock-data'
 import { useJob } from '@/lib/job-context'
 import { formatCurrency } from '@/lib/pricing'
 import Button from '@/components/Button'
+import BackButton from '@/components/BackButton'
 import Stepper from '@/components/Stepper'
 
 // Three steps: 'type' → 'fault' → 'parts'
-
-function BackArrow() {
-  return (
-    <svg
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M19 12H5M12 5l-7 7 7 7" />
-    </svg>
-  )
-}
 
 // Letter-based photo placeholder — shown when part has no photo_url
 function PartPhoto({ name }) {
@@ -134,13 +117,18 @@ export default function AddItemPage() {
   const suggestions = step === 'parts' ? Object.values(partState).map((ps) => ps.part) : []
   const hasSelected = Object.values(partState).some((ps) => ps.selected)
 
-  // Page title and subtitle based on step
+  // Page title, subtitle and back label based on step
   let pageTitle = 'Add item'
   let pageSubtitle = null
-  if (step === 'fault') pageTitle = JOINERY_TYPE_LABELS[joineryType]
+  let backLabel = 'Items'
+  if (step === 'fault') {
+    pageTitle = JOINERY_TYPE_LABELS[joineryType]
+    backLabel = 'Add item'
+  }
   if (step === 'parts') {
     pageTitle = 'Suggested parts'
     pageSubtitle = `${JOINERY_TYPE_LABELS[joineryType]} / ${faultLabel}`
+    backLabel = 'Faults'
   }
 
   return (
@@ -149,15 +137,8 @@ export default function AddItemPage() {
 
         {/* Header */}
         <div className="flex items-center gap-aq-sm py-aq-xl">
-          <button
-            type="button"
-            onClick={handleBack}
-            className="min-h-tap min-w-[48px] flex items-center justify-center text-aq-green -ml-3"
-            aria-label="Go back"
-          >
-            <BackArrow />
-          </button>
-          <div>
+          <BackButton onClick={handleBack} label={backLabel} />
+          <div className="ml-aq-sm">
             <h1 className="text-page-title font-medium text-aq-ink">{pageTitle}</h1>
             {pageSubtitle && (
               <p className="text-secondary text-aq-muted">{pageSubtitle}</p>

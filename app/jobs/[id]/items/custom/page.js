@@ -13,25 +13,8 @@ import {
 } from '@/lib/constants'
 import { formatCurrency } from '@/lib/pricing'
 import Button from '@/components/Button'
+import BackButton from '@/components/BackButton'
 import Stepper from '@/components/Stepper'
-
-function BackArrow() {
-  return (
-    <svg
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M19 12H5M12 5l-7 7 7 7" />
-    </svg>
-  )
-}
 
 function XIcon({ size = 18 }) {
   return (
@@ -267,15 +250,8 @@ export default function CustomItemPage() {
 
           {/* Header */}
           <div className="flex items-center gap-aq-sm py-aq-xl">
-            <button
-              type="button"
-              onClick={() => router.back()}
-              className="min-h-tap min-w-[48px] flex items-center justify-center text-aq-green -ml-3"
-              aria-label="Go back"
-            >
-              <BackArrow />
-            </button>
-            <h1 className="text-page-title font-medium text-aq-ink">Custom item</h1>
+            <BackButton onClick={() => router.push(`/jobs/${params.id}/items`)} label="Items" />
+            <h1 className="text-page-title font-medium text-aq-ink ml-aq-sm">Custom item</h1>
           </div>
 
           <div className="flex flex-col gap-aq-lg">

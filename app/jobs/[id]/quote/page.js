@@ -6,26 +6,9 @@ import { useJob } from '@/lib/job-context'
 import { useSettings } from '@/lib/settings-context'
 import { formatCurrency, calcGst } from '@/lib/pricing'
 import Button from '@/components/Button'
+import BackButton from '@/components/BackButton'
 import Stepper from '@/components/Stepper'
 import ConfirmModal from '@/components/ConfirmModal'
-
-function BackArrow() {
-  return (
-    <svg
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M19 12H5M12 5l-7 7 7 7" />
-    </svg>
-  )
-}
 
 function XIcon() {
   return (
@@ -104,7 +87,8 @@ export default function QuotePage() {
   function handleSendConfirm() {
     setCurrentJob((prev) => (prev ? { ...prev, status: 'quoted' } : prev))
     setSendModalOpen(false)
-    router.push(`/jobs/${params.id}`)
+    // replace() so the quote builder is not in the back stack from job detail
+    router.replace(`/jobs/${params.id}`)
   }
 
   function handleSaveDraft() {
@@ -131,15 +115,11 @@ export default function QuotePage() {
 
         {/* Header */}
         <div className="flex items-center gap-aq-sm py-aq-xl">
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="min-h-tap min-w-[48px] flex items-center justify-center text-aq-green -ml-3"
-            aria-label="Go back"
-          >
-            <BackArrow />
-          </button>
-          <h1 className="text-page-title font-medium text-aq-ink">Quote builder</h1>
+          <BackButton
+            onClick={() => router.push(`/jobs/${params.id}/items`)}
+            label="Items"
+          />
+          <h1 className="text-page-title font-medium text-aq-ink ml-aq-sm">Quote builder</h1>
         </div>
 
         {/* Customer summary */}

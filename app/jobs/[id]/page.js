@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useJob } from '@/lib/job-context'
+import BackButton from '@/components/BackButton'
 import { useSettings } from '@/lib/settings-context'
 import {
   JOB_SOURCE_LABELS,
@@ -14,24 +15,6 @@ import Button from '@/components/Button'
 import StatusBadge from '@/components/StatusBadge'
 import DurationPresets from '@/components/DurationPresets'
 import ConfirmModal from '@/components/ConfirmModal'
-
-function BackArrow() {
-  return (
-    <svg
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M19 12H5M12 5l-7 7 7 7" />
-    </svg>
-  )
-}
 
 function MapPinIcon() {
   return (
@@ -159,6 +142,17 @@ export default function JobDetailPage() {
 
   const scheduleRef = useRef(null)
 
+  // Resolve back destination from ?from= query param
+  const [backHref, setBackHref] = useState('/')
+  const [backLabel, setBackLabel] = useState('Home')
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search)
+    const from = searchParams.get('from')
+    if (from === 'quotes') { setBackHref('/quotes'); setBackLabel('Quotes') }
+    else if (from === 'today') { setBackHref('/today'); setBackLabel('Today') }
+    // else default Home
+  }, [])
+
   // When navigating directly to a job (e.g. from the quotes list), select it
   useEffect(() => {
     const match = jobs.find((j) => j.id === params.id)
@@ -230,15 +224,8 @@ export default function JobDetailPage() {
 
           {/* Header */}
           <div className="flex items-center gap-aq-sm py-aq-xl">
-            <button
-              type="button"
-              onClick={() => router.back()}
-              className="min-h-tap min-w-[48px] flex items-center justify-center text-aq-green -ml-3"
-              aria-label="Go back"
-            >
-              <BackArrow />
-            </button>
-            <h1 className="text-page-title font-medium text-aq-ink">Job detail</h1>
+            <BackButton href={backHref} label={backLabel} />
+            <h1 className="text-page-title font-medium text-aq-ink ml-aq-sm">Job detail</h1>
           </div>
 
           <div className="flex flex-col gap-aq-lg">
@@ -340,7 +327,16 @@ export default function JobDetailPage() {
               <h2 className="text-section font-medium text-aq-ink mb-aq-md">Items</h2>
 
               {(currentJob.items || []).length === 0 ? (
-                <p className="text-secondary text-aq-muted mb-aq-md">No items added yet.</p>
+                <div className="mb-aq-md">
+                  <p className="text-secondary text-aq-muted mb-aq-md">No items yet.</p>
+                  <Button
+                    variant="secondary"
+                    fullWidth
+                    onClick={() => router.push(`/jobs/${params.id}/items`)}
+                  >
+                    Add items
+                  </Button>
+                </div>
               ) : (
                 <div className="mb-aq-md">
                   {(currentJob.items || []).map((item) => {

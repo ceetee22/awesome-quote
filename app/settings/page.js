@@ -2,28 +2,10 @@
 
 import { useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
-import Link from 'next/link'
 import { useSettings } from '@/lib/settings-context'
 import Button from '@/components/Button'
+import BackButton from '@/components/BackButton'
 import ConfirmModal from '@/components/ConfirmModal'
-
-function BackArrow() {
-  return (
-    <svg
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M19 12H5M12 5l-7 7 7 7" />
-    </svg>
-  )
-}
 
 const inputClass =
   'w-full bg-white border border-aq-border rounded-aq-md min-h-tap px-4 text-body text-aq-ink placeholder:text-aq-subtle focus:outline-none focus:border-aq-green transition-colors duration-150'
@@ -237,14 +219,8 @@ export default function SettingsPage() {
 
           {/* Header */}
           <div className="flex items-center gap-aq-sm py-aq-xl">
-            <Link
-              href="/"
-              className="min-h-tap min-w-[48px] flex items-center justify-center text-aq-green -ml-3"
-              aria-label="Go home"
-            >
-              <BackArrow />
-            </Link>
-            <h1 className="text-page-title font-medium text-aq-ink">Settings</h1>
+            <BackButton href="/" label="Home" />
+            <h1 className="text-page-title font-medium text-aq-ink ml-aq-sm">Settings</h1>
           </div>
 
           <div className="flex flex-col gap-aq-lg">

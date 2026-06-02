@@ -2,10 +2,10 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { useJob } from '@/lib/job-context'
 import { JOB_SOURCE, JOB_SOURCE_LABELS } from '@/lib/constants'
 import Button from '@/components/Button'
+import BackButton from '@/components/BackButton'
 
 const SOURCE_OPTIONS = [
   JOB_SOURCE.DIRECT,
@@ -43,26 +43,8 @@ export default function NewJobPage() {
 
         {/* Header */}
         <div className="flex items-center gap-aq-sm py-aq-xl">
-          <Link
-            href="/"
-            className="min-h-tap min-w-[48px] flex items-center justify-center text-aq-green -ml-3"
-            aria-label="Cancel and go home"
-          >
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M19 12H5M12 5l-7 7 7 7" />
-            </svg>
-          </Link>
-          <h1 className="text-page-title font-medium text-aq-ink">New job</h1>
+          <BackButton href="/" label="Home" />
+          <h1 className="text-page-title font-medium text-aq-ink ml-aq-sm">New job</h1>
         </div>
 
         {/* Form fields */}

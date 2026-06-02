@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
-import Link from 'next/link'
 import { MOCK_PARTS } from '@/lib/mock-data'
 import {
   PART_CATEGORY,
@@ -15,24 +14,7 @@ import {
 } from '@/lib/constants'
 import { calcSellPrice, formatCurrency } from '@/lib/pricing'
 import Button from '@/components/Button'
-
-function BackArrow() {
-  return (
-    <svg
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M19 12H5M12 5l-7 7 7 7" />
-    </svg>
-  )
-}
+import BackButton from '@/components/BackButton'
 
 function XIcon() {
   return (
@@ -408,14 +390,8 @@ export default function CataloguePage() {
 
           {/* Header */}
           <div className="flex items-center gap-aq-sm py-aq-xl">
-            <Link
-              href="/"
-              className="min-h-tap min-w-[48px] flex items-center justify-center text-aq-green -ml-3"
-              aria-label="Go home"
-            >
-              <BackArrow />
-            </Link>
-            <h1 className="text-page-title font-medium text-aq-ink">Parts catalogue</h1>
+            <BackButton href="/" label="Home" />
+            <h1 className="text-page-title font-medium text-aq-ink ml-aq-sm">Parts catalogue</h1>
           </div>
 
           {/* Search */}
