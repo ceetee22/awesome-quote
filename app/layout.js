@@ -11,17 +11,18 @@ export const metadata = {
   title: 'Awesome Quote',
   description: 'Joinery repair quoting for NZ tradespeople',
   manifest: '/manifest.json',
-  themeColor: '#22A67A',
-  viewport: {
-    width: 'device-width',
-    initialScale: 1,
-    maximumScale: 1,
-    userScalable: false,
-  },
   icons: {
     icon: '/icons/favicon.svg',
     apple: '/icons/icon-192.svg',
   },
+}
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: '#22A67A',
 }
 
 export default function RootLayout({ children }) {
