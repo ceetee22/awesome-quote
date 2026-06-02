@@ -1,14 +1,162 @@
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useJob } from '@/lib/job-context'
+import { JOB_SOURCE, JOB_SOURCE_LABELS } from '@/lib/constants'
+import Button from '@/components/Button'
+
+const SOURCE_OPTIONS = [
+  JOB_SOURCE.DIRECT,
+  JOB_SOURCE.PROPERTY_MANAGER,
+  JOB_SOURCE.BUILDER,
+]
+
+const inputClass =
+  'w-full bg-white border border-aq-border rounded-aq-md min-h-tap px-4 text-body text-aq-ink placeholder:text-aq-subtle focus:outline-none focus:border-aq-green transition-colors duration-150'
 
 export default function NewJobPage() {
+  const router = useRouter()
+  const { createJob } = useJob()
+
+  const [name, setName] = useState('')
+  const [address, setAddress] = useState('')
+  const [phone, setPhone] = useState('')
+  const [source, setSource] = useState(JOB_SOURCE.DIRECT)
+
+  function handleStart() {
+    const job = createJob({
+      customer_name: name.trim(),
+      customer_address: address.trim(),
+      customer_phone: phone.trim(),
+      source,
+    })
+    router.push(`/jobs/${job.id}/items`)
+  }
+
+  const canStart = name.trim().length > 0
+
   return (
     <div className="min-h-dvh bg-aq-surface">
-      <div className="max-w-[480px] mx-auto px-aq-lg py-aq-xl">
-        <Link href="/" className="text-aq-green text-secondary font-medium mb-aq-xl inline-block">
-          Back
-        </Link>
-        <h1 className="text-page-title font-medium text-aq-ink mb-aq-2xl">New job</h1>
-        <p className="text-secondary text-aq-muted">Customer details form coming in v0.4.0.</p>
+      <div className="max-w-[480px] mx-auto px-aq-lg pb-aq-2xl">
+
+        {/* Header */}
+        <div className="flex items-center gap-aq-sm py-aq-xl">
+          <Link
+            href="/"
+            className="min-h-tap min-w-[48px] flex items-center justify-center text-aq-green -ml-3"
+            aria-label="Cancel and go home"
+          >
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M19 12H5M12 5l-7 7 7 7" />
+            </svg>
+          </Link>
+          <h1 className="text-page-title font-medium text-aq-ink">New job</h1>
+        </div>
+
+        {/* Form fields */}
+        <div className="flex flex-col gap-aq-lg">
+
+          <div>
+            <label
+              htmlFor="customer_name"
+              className="block text-secondary text-aq-muted mb-aq-sm"
+            >
+              Customer name
+            </label>
+            <input
+              id="customer_name"
+              type="text"
+              autoComplete="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Sarah Taufa"
+              className={inputClass}
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="address"
+              className="block text-secondary text-aq-muted mb-aq-sm"
+            >
+              Address
+            </label>
+            <input
+              id="address"
+              type="text"
+              autoComplete="street-address"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="e.g. 14 Rata St, Papakura"
+              className={inputClass}
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="phone"
+              className="block text-secondary text-aq-muted mb-aq-sm"
+            >
+              Phone
+            </label>
+            <input
+              id="phone"
+              type="tel"
+              autoComplete="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="e.g. 021 123 4567"
+              className={inputClass}
+            />
+          </div>
+
+          {/* Job source selector */}
+          <div>
+            <p className="text-secondary text-aq-muted mb-aq-sm">Job source</p>
+            <div className="flex gap-aq-sm">
+              {SOURCE_OPTIONS.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setSource(s)}
+                  className={`flex-1 min-h-tap px-aq-md text-secondary font-medium rounded-aq-lg border transition-colors duration-150 ${
+                    source === s
+                      ? 'border-aq-green text-aq-green bg-aq-green-tint'
+                      : 'border-aq-border text-aq-muted bg-white hover:bg-aq-surface'
+                  }`}
+                >
+                  {JOB_SOURCE_LABELS[s]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+        </div>
+
+        {/* CTA */}
+        <div className="mt-aq-2xl">
+          <Button
+            variant="primary"
+            fullWidth
+            disabled={!canStart}
+            onClick={handleStart}
+          >
+            Start adding items
+          </Button>
+        </div>
+
       </div>
     </div>
   )
