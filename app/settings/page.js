@@ -1,15 +1,438 @@
-import Link from 'next/link'
+'use client'
 
-export default function SettingsPage() {
+import { useState } from 'react'
+import { v4 as uuidv4 } from 'uuid'
+import Link from 'next/link'
+import { useSettings } from '@/lib/settings-context'
+import Button from '@/components/Button'
+import ConfirmModal from '@/components/ConfirmModal'
+
+function BackArrow() {
   return (
-    <div className="min-h-dvh bg-aq-surface">
-      <div className="max-w-[480px] mx-auto px-aq-lg py-aq-xl">
-        <Link href="/" className="text-aq-green text-secondary font-medium mb-aq-xl inline-block">
-          Back
-        </Link>
-        <h1 className="text-page-title font-medium text-aq-ink mb-aq-2xl">Settings</h1>
-        <p className="text-secondary text-aq-muted">Settings screen coming in a later sprint.</p>
+    <svg
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M19 12H5M12 5l-7 7 7 7" />
+    </svg>
+  )
+}
+
+const inputClass =
+  'w-full bg-white border border-aq-border rounded-aq-md min-h-tap px-4 text-body text-aq-ink placeholder:text-aq-subtle focus:outline-none focus:border-aq-green transition-colors duration-150'
+
+const labelClass = 'block text-secondary text-aq-muted mb-aq-sm'
+
+function PrefixInput({ id, prefix, value, onChange, placeholder, type = 'number' }) {
+  return (
+    <div className="flex items-stretch border border-aq-border rounded-aq-md overflow-hidden min-h-tap focus-within:border-aq-green transition-colors duration-150 bg-white">
+      <span className="px-3 flex items-center text-body text-aq-muted bg-aq-surface border-r border-aq-border shrink-0">
+        {prefix}
+      </span>
+      <input
+        id={id}
+        type={type}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        className="flex-1 px-3 text-body text-aq-ink bg-white focus:outline-none min-w-0"
+      />
+    </div>
+  )
+}
+
+function SuffixInput({ id, suffix, value, onChange, placeholder }) {
+  return (
+    <div className="flex items-stretch border border-aq-border rounded-aq-md overflow-hidden min-h-tap focus-within:border-aq-green transition-colors duration-150 bg-white">
+      <input
+        id={id}
+        type="number"
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        className="flex-1 px-3 text-body text-aq-ink bg-white focus:outline-none min-w-0"
+      />
+      <span className="px-3 flex items-center text-body text-aq-muted bg-aq-surface border-l border-aq-border shrink-0">
+        {suffix}
+      </span>
+    </div>
+  )
+}
+
+function ZoneCard({ zone, isEditing, onEdit, onSaveEdit, onCancelEdit, onDelete, canDelete, editState, onEditChange }) {
+  if (isEditing && editState) {
+    return (
+      <div className="bg-aq-green-tint border border-aq-green-tint-border rounded-aq-xl p-aq-lg flex flex-col gap-aq-sm">
+        <div>
+          <p className={labelClass}>Zone name</p>
+          <input
+            type="text"
+            value={editState.name}
+            onChange={(e) => onEditChange('name', e.target.value)}
+            className={inputClass}
+          />
+        </div>
+        <div className="flex gap-aq-sm">
+          <div className="flex-1">
+            <p className={labelClass}>From (km)</p>
+            <input
+              type="number"
+              value={editState.min_km}
+              onChange={(e) => onEditChange('min_km', e.target.value)}
+              className={inputClass}
+            />
+          </div>
+          <div className="flex-1">
+            <p className={labelClass}>To (km)</p>
+            <input
+              type="number"
+              value={editState.max_km}
+              onChange={(e) => onEditChange('max_km', e.target.value)}
+              placeholder="No limit"
+              className={inputClass}
+            />
+          </div>
+        </div>
+        <div>
+          <p className={labelClass}>Fee</p>
+          <PrefixInput
+            prefix="$"
+            value={editState.fee}
+            onChange={(e) => onEditChange('fee', e.target.value)}
+            placeholder="0"
+          />
+        </div>
+        <div className="flex gap-aq-sm">
+          <Button variant="primary" className="flex-1" onClick={onSaveEdit}>
+            Save
+          </Button>
+          <Button variant="secondary" className="flex-1" onClick={onCancelEdit}>
+            Cancel
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  const distanceLabel =
+    zone.max_km != null ? `${zone.min_km} to ${zone.max_km} km` : `${zone.min_km}+ km`
+
+  return (
+    <div className="bg-aq-surface border border-aq-border rounded-aq-xl p-aq-lg flex items-center justify-between gap-aq-sm">
+      <div className="flex-1 min-w-0">
+        <p className="text-secondary font-medium text-aq-ink">{zone.name}</p>
+        <p className="text-caption text-aq-muted">{distanceLabel}</p>
+        <p className="text-secondary font-medium text-aq-green mt-aq-xs">${zone.fee.toFixed(2)}</p>
+      </div>
+      <div className="flex gap-aq-sm shrink-0">
+        <Button variant="secondary" onClick={onEdit}>
+          Edit
+        </Button>
+        {canDelete && (
+          <Button variant="destructive" onClick={onDelete}>
+            Delete
+          </Button>
+        )}
       </div>
     </div>
+  )
+}
+
+export default function SettingsPage() {
+  const { settings, updateSettings } = useSettings()
+
+  const [form, setForm] = useState({
+    business_name: settings.business_name,
+    business_phone: settings.business_phone,
+    business_email: settings.business_email,
+    home_base_address: settings.home_base_address,
+    hourly_labour_rate: String(settings.hourly_labour_rate),
+    default_markup_pct: String(settings.default_markup_pct),
+    gst_rate: String(settings.gst_rate),
+    supplier_name: settings.supplier_name,
+    supplier_email: settings.supplier_email,
+  })
+
+  const [zones, setZones] = useState(settings.callout_zones)
+  const [editingZoneId, setEditingZoneId] = useState(null)
+  const [editZoneState, setEditZoneState] = useState(null)
+  const [deleteZoneId, setDeleteZoneId] = useState(null)
+  const [savedVisible, setSavedVisible] = useState(false)
+
+  function setField(key, value) {
+    setForm((prev) => ({ ...prev, [key]: value }))
+  }
+
+  function startEditZone(zone) {
+    setEditingZoneId(zone.id)
+    setEditZoneState({
+      name: zone.name,
+      min_km: String(zone.min_km),
+      max_km: zone.max_km != null ? String(zone.max_km) : '',
+      fee: String(zone.fee),
+    })
+  }
+
+  function saveEditZone() {
+    setZones((prev) =>
+      prev.map((z) => {
+        if (z.id !== editingZoneId) return z
+        return {
+          ...z,
+          name: editZoneState.name,
+          min_km: parseFloat(editZoneState.min_km) || 0,
+          max_km: editZoneState.max_km === '' ? null : parseFloat(editZoneState.max_km),
+          fee: parseFloat(editZoneState.fee) || 0,
+        }
+      })
+    )
+    setEditingZoneId(null)
+    setEditZoneState(null)
+  }
+
+  function cancelEditZone() {
+    setEditingZoneId(null)
+    setEditZoneState(null)
+  }
+
+  function addZone() {
+    const newZone = { id: uuidv4(), name: 'New zone', min_km: 0, max_km: null, fee: 0 }
+    setZones((prev) => [...prev, newZone])
+    startEditZone(newZone)
+  }
+
+  function confirmDeleteZone() {
+    setZones((prev) => prev.filter((z) => z.id !== deleteZoneId))
+    setDeleteZoneId(null)
+  }
+
+  function handleSave() {
+    updateSettings({
+      business_name: form.business_name,
+      business_phone: form.business_phone,
+      business_email: form.business_email,
+      home_base_address: form.home_base_address,
+      hourly_labour_rate: parseFloat(form.hourly_labour_rate) || 85,
+      default_markup_pct: parseFloat(form.default_markup_pct) || 50,
+      gst_rate: parseFloat(form.gst_rate) || 15,
+      supplier_name: form.supplier_name,
+      supplier_email: form.supplier_email,
+      callout_zones: zones,
+    })
+    setSavedVisible(true)
+    setTimeout(() => setSavedVisible(false), 2000)
+  }
+
+  return (
+    <>
+      <div className="min-h-dvh bg-aq-surface">
+        <div className="max-w-[480px] mx-auto px-aq-lg pb-aq-2xl">
+
+          {/* Header */}
+          <div className="flex items-center gap-aq-sm py-aq-xl">
+            <Link
+              href="/"
+              className="min-h-tap min-w-[48px] flex items-center justify-center text-aq-green -ml-3"
+              aria-label="Go home"
+            >
+              <BackArrow />
+            </Link>
+            <h1 className="text-page-title font-medium text-aq-ink">Settings</h1>
+          </div>
+
+          <div className="flex flex-col gap-aq-lg">
+
+            {/* Business details */}
+            <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg">
+              <h2 className="text-section font-medium text-aq-ink mb-aq-lg">Business details</h2>
+              <div className="flex flex-col gap-aq-md">
+                <div>
+                  <label htmlFor="biz-name" className={labelClass}>Business name</label>
+                  <input
+                    id="biz-name"
+                    type="text"
+                    value={form.business_name}
+                    onChange={(e) => setField('business_name', e.target.value)}
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="biz-phone" className={labelClass}>Phone</label>
+                  <input
+                    id="biz-phone"
+                    type="tel"
+                    value={form.business_phone}
+                    onChange={(e) => setField('business_phone', e.target.value)}
+                    placeholder="e.g. 021 123 4567"
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="biz-email" className={labelClass}>Email</label>
+                  <input
+                    id="biz-email"
+                    type="email"
+                    value={form.business_email}
+                    onChange={(e) => setField('business_email', e.target.value)}
+                    placeholder="e.g. info@example.co.nz"
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <p className={labelClass}>Logo</p>
+                  <div className="border-2 border-dashed border-aq-border rounded-aq-xl flex items-center justify-center min-h-[96px] bg-aq-surface cursor-not-allowed">
+                    <p className="text-secondary text-aq-subtle">Tap to upload logo</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Pricing */}
+            <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg">
+              <h2 className="text-section font-medium text-aq-ink mb-aq-lg">Pricing</h2>
+              <div className="flex flex-col gap-aq-md">
+                <div>
+                  <label htmlFor="hourly-rate" className={labelClass}>Hourly labour rate</label>
+                  <PrefixInput
+                    id="hourly-rate"
+                    prefix="$"
+                    value={form.hourly_labour_rate}
+                    onChange={(e) => setField('hourly_labour_rate', e.target.value)}
+                    placeholder="85"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="markup-pct" className={labelClass}>Default parts markup</label>
+                  <SuffixInput
+                    id="markup-pct"
+                    suffix="%"
+                    value={form.default_markup_pct}
+                    onChange={(e) => setField('default_markup_pct', e.target.value)}
+                    placeholder="50"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="gst-rate" className={labelClass}>GST rate</label>
+                  <SuffixInput
+                    id="gst-rate"
+                    suffix="%"
+                    value={form.gst_rate}
+                    onChange={(e) => setField('gst_rate', e.target.value)}
+                    placeholder="15"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Callout zones */}
+            <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg">
+              <h2 className="text-section font-medium text-aq-ink mb-aq-md">Callout zones</h2>
+              <div className="mb-aq-md">
+                <label htmlFor="home-base" className={labelClass}>Home base address</label>
+                <input
+                  id="home-base"
+                  type="text"
+                  value={form.home_base_address}
+                  onChange={(e) => setField('home_base_address', e.target.value)}
+                  placeholder="e.g. 12 Main St, Papakura"
+                  className={inputClass}
+                />
+              </div>
+              <div className="flex flex-col gap-[10px] mb-aq-md">
+                {zones.map((zone) => (
+                  <ZoneCard
+                    key={zone.id}
+                    zone={zone}
+                    isEditing={editingZoneId === zone.id}
+                    onEdit={() => startEditZone(zone)}
+                    onSaveEdit={saveEditZone}
+                    onCancelEdit={cancelEditZone}
+                    onDelete={() => setDeleteZoneId(zone.id)}
+                    canDelete={zones.length > 1}
+                    editState={editZoneState}
+                    onEditChange={(key, value) =>
+                      setEditZoneState((prev) => ({ ...prev, [key]: value }))
+                    }
+                  />
+                ))}
+              </div>
+              <Button variant="secondary" fullWidth onClick={addZone}>
+                Add zone
+              </Button>
+            </div>
+
+            {/* Supplier */}
+            <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg">
+              <h2 className="text-section font-medium text-aq-ink mb-aq-lg">Supplier</h2>
+              <div className="flex flex-col gap-aq-md">
+                <div>
+                  <label htmlFor="supplier-name" className={labelClass}>Supplier name</label>
+                  <input
+                    id="supplier-name"
+                    type="text"
+                    value={form.supplier_name}
+                    onChange={(e) => setField('supplier_name', e.target.value)}
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="supplier-email" className={labelClass}>Supplier email</label>
+                  <input
+                    id="supplier-email"
+                    type="email"
+                    value={form.supplier_email}
+                    onChange={(e) => setField('supplier_email', e.target.value)}
+                    placeholder="orders@supplier.co.nz"
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Xero */}
+            <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg">
+              <h2 className="text-section font-medium text-aq-ink mb-aq-sm">Xero connection</h2>
+              <p className="text-secondary text-aq-muted mb-aq-lg">
+                Link your Xero account to send invoices directly.
+              </p>
+              <Button variant="secondary" fullWidth>
+                Connect to Xero
+              </Button>
+            </div>
+
+          </div>
+
+          {/* Save */}
+          <div className="mt-aq-2xl flex flex-col gap-aq-sm">
+            <Button variant="primary" fullWidth onClick={handleSave}>
+              Save settings
+            </Button>
+            {savedVisible && (
+              <p className="text-secondary font-medium text-aq-green text-center">
+                Settings saved
+              </p>
+            )}
+          </div>
+
+        </div>
+      </div>
+
+      <ConfirmModal
+        open={!!deleteZoneId}
+        question="Delete this callout zone?"
+        confirmLabel="Yes, delete"
+        cancelLabel="Keep"
+        variant="destructive"
+        onConfirm={confirmDeleteZone}
+        onCancel={() => setDeleteZoneId(null)}
+      />
+    </>
   )
 }

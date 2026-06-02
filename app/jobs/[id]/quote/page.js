@@ -3,13 +3,11 @@
 import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useJob } from '@/lib/job-context'
+import { useSettings } from '@/lib/settings-context'
 import { formatCurrency, calcGst } from '@/lib/pricing'
-import { DEFAULT_SETTINGS } from '@/lib/constants'
 import Button from '@/components/Button'
 import Stepper from '@/components/Stepper'
 import ConfirmModal from '@/components/ConfirmModal'
-
-const GST_RATE = DEFAULT_SETTINGS.gst_rate
 
 function BackArrow() {
   return (
@@ -51,8 +49,11 @@ export default function QuotePage() {
   const params = useParams()
   const router = useRouter()
   const { currentJob, setCurrentJob } = useJob()
+  const { settings } = useSettings()
 
-  const hourlyRate = currentJob?.hourly_rate || DEFAULT_SETTINGS.hourly_labour_rate
+  const hourlyRate = currentJob?.hourly_rate || settings.hourly_labour_rate
+  const GST_RATE = settings.gst_rate
+  const defaultCalloutFee = settings.callout_zones?.[0]?.fee ?? 50
 
   // Flatten all parts from all job items into a single quote parts list.
   // Each part gets a unique _key so individual lines can be removed.
@@ -71,9 +72,13 @@ export default function QuotePage() {
   })
 
   const [labourHours, setLabourHours] = useState(0)
-  const [calloutFee, setCalloutFee] = useState(currentJob?.callout_fee ?? 50)
+  const [calloutFee, setCalloutFee] = useState(
+    currentJob?.callout_fee != null ? currentJob.callout_fee : defaultCalloutFee
+  )
   const [overriding, setOverriding] = useState(false)
-  const [overrideInput, setOverrideInput] = useState(String(currentJob?.callout_fee ?? 50))
+  const [overrideInput, setOverrideInput] = useState(
+    String(currentJob?.callout_fee != null ? currentJob.callout_fee : defaultCalloutFee)
+  )
   const [sendModalOpen, setSendModalOpen] = useState(false)
 
   const partsSubtotal = quoteParts.reduce((s, p) => s + p.sell_price * p.qty, 0)
