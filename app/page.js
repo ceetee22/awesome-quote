@@ -59,7 +59,7 @@ function jobTotalIncGst(job, hourlyRate, gstRate) {
   return subtotal + calcGst(subtotal, gstRate)
 }
 
-function JobRow({ job, hourlyRate, gstRate }) {
+function JobRow({ job, hourlyRate, gstRate, getDisplayStatus }) {
   const total = jobTotalIncGst(job, hourlyRate, gstRate)
   const itemCount = (job.items || []).length
 
@@ -70,7 +70,7 @@ function JobRow({ job, hourlyRate, gstRate }) {
     >
       <div className="flex items-start justify-between gap-aq-sm mb-1">
         <span className="text-body font-medium text-aq-ink leading-snug">{job.customer_name}</span>
-        <StatusBadge status={job.status} />
+        <StatusBadge status={getDisplayStatus(job)} />
       </div>
       {job.customer_address && (
         <p className="text-secondary text-aq-muted mb-1">{job.customer_address}</p>
@@ -90,21 +90,27 @@ export default function HomePage() {
   const { jobs } = useJob()
   const { settings } = useSettings()
 
-  const STATUS_PRIORITY = {
-    accepted: 0,
-    scheduled: 0,
-    quoted: 1,
-    awaiting: 1,
-    draft: 2,
-    ordered: 3,
-    completed: 4,
-    invoiced: 4,
+  function getJobPriority(job) {
+    if (job.status === 'accepted' || job.status === 'scheduled') return 0
+    if (job.status === 'quoted' || job.status === 'awaiting') return 1
+    if (job.status === 'invoiced' && job.payment_status !== 'paid') return 2
+    if (job.status === 'draft') return 3
+    if (job.status === 'ordered') return 4
+    if (job.status === 'completed') return 5
+    if (job.status === 'invoiced') return 6
+    return 10
+  }
+
+  function displayStatus(job) {
+    if (job.status === 'invoiced' && job.payment_status !== 'paid') return 'unpaid'
+    return job.status
   }
 
   const recentJobs = [...jobs]
+    .filter((j) => j.status !== 'declined')
     .sort((a, b) => {
-      const pa = STATUS_PRIORITY[a.status] ?? 2
-      const pb = STATUS_PRIORITY[b.status] ?? 2
+      const pa = getJobPriority(a)
+      const pb = getJobPriority(b)
       if (pa !== pb) return pa - pb
       return new Date(b.created_at) - new Date(a.created_at)
     })
@@ -190,6 +196,7 @@ export default function HomePage() {
                     job={job}
                     hourlyRate={settings.hourly_labour_rate}
                     gstRate={settings.gst_rate}
+                    getDisplayStatus={displayStatus}
                   />
                 ))}
               </div>

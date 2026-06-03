@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { useJob } from '@/lib/job-context'
 import { useSettings } from '@/lib/settings-context'
@@ -19,6 +20,19 @@ function jobTotal(job, hourlyRate, gstRate) {
   return subtotal + calcGst(subtotal, gstRate)
 }
 
+function displayStatus(job) {
+  if (job.status === 'invoiced' && job.payment_status !== 'paid') return 'unpaid'
+  return job.status
+}
+
+function getQuotePriority(job) {
+  if (job.status === 'invoiced' && job.payment_status !== 'paid') return 1
+  if (job.status === 'quoted' || job.status === 'awaiting') return 2
+  if (job.status === 'draft') return 3
+  if (job.status === 'declined') return 10
+  return 5
+}
+
 function JobCard({ job, hourlyRate, gstRate }) {
   const itemCount = (job.items || []).length
   const total = jobTotal(job, hourlyRate, gstRate)
@@ -30,7 +44,7 @@ function JobCard({ job, hourlyRate, gstRate }) {
     >
       <div className="flex items-start justify-between gap-aq-sm mb-aq-xs">
         <span className="text-body font-medium text-aq-ink leading-snug">{job.customer_name}</span>
-        <StatusBadge status={job.status} />
+        <StatusBadge status={displayStatus(job)} />
       </div>
       {job.customer_address && (
         <p className="text-secondary text-aq-muted mb-aq-xs">{job.customer_address}</p>
@@ -48,10 +62,22 @@ function JobCard({ job, hourlyRate, gstRate }) {
 export default function QuotesPage() {
   const { jobs } = useJob()
   const { settings } = useSettings()
+  const [showDeclined, setShowDeclined] = useState(false)
 
   const openQuotes = [...jobs]
-    .filter((j) => j.status === 'quoted' || j.status === 'draft' || j.status === 'awaiting')
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    .filter((j) => {
+      if (j.status === 'declined') return showDeclined
+      if (j.status === 'invoiced') return j.payment_status !== 'paid'
+      return j.status === 'quoted' || j.status === 'draft' || j.status === 'awaiting'
+    })
+    .sort((a, b) => {
+      const pa = getQuotePriority(a)
+      const pb = getQuotePriority(b)
+      if (pa !== pb) return pa - pb
+      return new Date(b.created_at) - new Date(a.created_at)
+    })
+
+  const declinedCount = jobs.filter((j) => j.status === 'declined').length
 
   return (
     <div className="min-h-dvh bg-aq-surface">
@@ -60,7 +86,16 @@ export default function QuotesPage() {
         {/* Header */}
         <div className="flex items-center gap-aq-sm py-aq-xl">
           <BackButton href="/" label="Home" />
-          <h1 className="text-page-title font-medium text-aq-ink ml-aq-sm">Open quotes</h1>
+          <h1 className="text-page-title font-medium text-aq-ink ml-aq-sm flex-1">Open quotes</h1>
+          {declinedCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowDeclined((o) => !o)}
+              className="text-secondary text-aq-muted hover:text-aq-ink transition-colors min-h-tap px-aq-sm flex items-center shrink-0"
+            >
+              {showDeclined ? 'Hide declined' : `Show declined (${declinedCount})`}
+            </button>
+          )}
         </div>
 
         {openQuotes.length === 0 ? (
