@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useJob } from '@/lib/job-context'
 import { useSettings } from '@/lib/settings-context'
 import { formatCurrency, calcGst } from '@/lib/pricing'
+import { generateQuotePdf, downloadBlob } from '@/lib/generate-quote-pdf'
 import Button from '@/components/Button'
 import BackButton from '@/components/BackButton'
 import Stepper from '@/components/Stepper'
@@ -63,6 +64,7 @@ export default function QuotePage() {
     String(currentJob?.callout_fee != null ? currentJob.callout_fee : defaultCalloutFee)
   )
   const [sendModalOpen, setSendModalOpen] = useState(false)
+  const [sendPhase, setSendPhase] = useState(null) // null | 'generating' | 'done'
 
   const partsSubtotal = quoteParts.reduce((s, p) => s + p.sell_price * p.qty, 0)
   const labourTotal = labourHours * hourlyRate
@@ -84,14 +86,36 @@ export default function QuotePage() {
     setOverriding(false)
   }
 
-  function handleSendConfirm() {
+  async function handleSendConfirm() {
+    setSendModalOpen(false)
+    setSendPhase('generating')
+
+    try {
+      const blob = await generateQuotePdf({
+        job: currentJob,
+        settings,
+        labourHours,
+        calloutFee,
+        hourlyRate,
+        subtotal,
+        gst,
+        total,
+        acceptanceUrl: `https://awesome-quote.vercel.app/accept/${params.id}`,
+      })
+      const safeName = (currentJob.customer_name || 'quote')
+        .replace(/[^a-z0-9]/gi, '-')
+        .toLowerCase()
+      downloadBlob(blob, `quote-${safeName}.pdf`)
+    } catch (err) {
+      console.error('PDF generation failed:', err)
+    }
+
     setCurrentJob((prev) =>
       prev
         ? { ...prev, status: 'quoted', labour_hours: labourHours, callout_fee: calloutFee, hourly_rate: hourlyRate }
         : prev
     )
-    setSendModalOpen(false)
-    router.replace(`/jobs/${params.id}`)
+    setSendPhase('done')
   }
 
   function handleSaveDraft() {
@@ -101,6 +125,32 @@ export default function QuotePage() {
         : prev
     )
     router.push('/')
+  }
+
+  if (sendPhase === 'generating') {
+    return (
+      <div className="min-h-dvh bg-aq-surface flex items-center justify-center px-aq-lg">
+        <p className="text-body text-aq-muted">Generating PDF...</p>
+      </div>
+    )
+  }
+
+  if (sendPhase === 'done') {
+    return (
+      <div className="min-h-dvh bg-aq-surface flex items-center justify-center px-aq-lg">
+        <div className="max-w-[480px] w-full mx-auto">
+          <div className="bg-white border border-aq-border rounded-aq-xl p-aq-2xl mb-aq-lg text-center">
+            <p className="text-section font-medium text-aq-ink mb-aq-sm">Quote downloaded.</p>
+            <p className="text-body text-aq-muted">
+              Email it to {currentJob?.customer_name}.
+            </p>
+          </div>
+          <Button variant="primary" fullWidth onClick={() => router.replace(`/jobs/${params.id}`)}>
+            Go to job
+          </Button>
+        </div>
+      </div>
+    )
   }
 
   if (!currentJob) {

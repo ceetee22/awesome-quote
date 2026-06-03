@@ -11,6 +11,7 @@ import {
   FAULT_OPTIONS,
 } from '@/lib/constants'
 import { formatCurrency, calcGst } from '@/lib/pricing'
+import { generateQuotePdf, downloadBlob } from '@/lib/generate-quote-pdf'
 import Button from '@/components/Button'
 import StatusBadge from '@/components/StatusBadge'
 import DurationPresets from '@/components/DurationPresets'
@@ -239,6 +240,36 @@ export default function JobDetailPage() {
     setResendModalOpen(false)
   }
 
+  async function handleDownloadPdf() {
+    const hr = currentJob.hourly_rate || settings.hourly_labour_rate
+    const lh = currentJob.labour_hours || 0
+    const cf = currentJob.callout_fee || 0
+    const partsTotal = (currentJob.items || [])
+      .flatMap((i) => i.parts || [])
+      .reduce((s, p) => s + p.sell_price * p.qty, 0)
+    const sub = partsTotal + lh * hr + cf
+    const g   = calcGst(sub, settings.gst_rate)
+    try {
+      const blob = await generateQuotePdf({
+        job: currentJob,
+        settings,
+        labourHours: lh,
+        calloutFee: cf,
+        hourlyRate: hr,
+        subtotal: sub,
+        gst: g,
+        total: sub + g,
+        acceptanceUrl: `https://awesome-quote.vercel.app/accept/${currentJob.id}`,
+      })
+      const safeName = (currentJob.customer_name || 'quote')
+        .replace(/[^a-z0-9]/gi, '-')
+        .toLowerCase()
+      downloadBlob(blob, `quote-${safeName}.pdf`)
+    } catch (err) {
+      console.error('PDF download failed:', err)
+    }
+  }
+
   const mapsUrl = currentJob.customer_address
     ? `https://maps.google.com/?q=${encodeURIComponent(currentJob.customer_address)}`
     : null
@@ -451,7 +482,18 @@ export default function JobDetailPage() {
                   <Button variant="secondary" fullWidth onClick={() => router.push(`/jobs/${params.id}/quote`)}>
                     Edit quote
                   </Button>
+                  <Button variant="secondary" fullWidth onClick={handleDownloadPdf}>
+                    Download PDF
+                  </Button>
                 </div>
+              </div>
+            )}
+
+            {(currentJob.status === 'accepted' || currentJob.status === 'ordered' || currentJob.status === 'scheduled' || currentJob.status === 'completed' || currentJob.status === 'invoiced') && (
+              <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg">
+                <Button variant="secondary" fullWidth onClick={handleDownloadPdf}>
+                  Download PDF
+                </Button>
               </div>
             )}
 
