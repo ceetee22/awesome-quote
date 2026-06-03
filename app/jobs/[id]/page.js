@@ -183,6 +183,12 @@ export default function JobDetailPage() {
   const gst         = calcGst(subtotal, settings.gst_rate)
   const jobTotal    = subtotal + gst
 
+  const partsGrossCost = (currentJob.items || [])
+    .flatMap((i) => i.parts || [])
+    .reduce((s, p) => s + (p.cost_price || 0) * p.qty, 0)
+  const profit       = subtotal - partsGrossCost
+  const profitMargin = subtotal > 0 ? profit / subtotal : 0
+
   const mapsUrl = currentJob.customer_address
     ? `https://maps.google.com/?q=${encodeURIComponent(currentJob.customer_address)}`
     : null
@@ -665,6 +671,42 @@ export default function JobDetailPage() {
       )}
 
       {quoteSummaryCard}
+
+      {/* Job profit — operator only, never customer-facing */}
+      <div className="bg-aq-green-tint border border-aq-green-tint-border rounded-aq-xl p-aq-lg">
+        <div className="flex items-center gap-aq-sm mb-aq-md">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+            className="text-aq-green shrink-0">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+            <path d="M7 11V7a5 5 0 0110 0v4" />
+          </svg>
+          <h2 className="text-section font-medium text-aq-ink">Job profit</h2>
+        </div>
+        <div className="flex flex-col gap-aq-xs mb-aq-md">
+          <div className="flex justify-between">
+            <span className="text-secondary text-aq-muted">You charged</span>
+            <span className="text-secondary text-aq-ink">{formatCurrency(subtotal)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-secondary text-aq-muted">Parts cost you</span>
+            <span className="text-secondary text-aq-ink">{formatCurrency(partsGrossCost)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-secondary text-aq-muted">Labour and callout</span>
+            <span className="text-secondary text-aq-ink">{formatCurrency(labourTotal + calloutFee)}</span>
+          </div>
+        </div>
+        <div className="flex justify-between items-baseline border-t border-aq-green-tint-border pt-aq-sm">
+          <span className="text-body font-medium text-aq-ink">Profit</span>
+          <span className={`text-section font-medium ${profitMargin >= 0.20 ? 'text-aq-green' : 'text-aq-gold'}`}>
+            {formatCurrency(profit)}
+          </span>
+        </div>
+        <p className="text-caption text-aq-muted mt-aq-md">
+          For your eyes only. This never appears on customer documents.
+        </p>
+      </div>
 
       <div className="flex flex-col gap-aq-sm">
         {status === 'completed' && (

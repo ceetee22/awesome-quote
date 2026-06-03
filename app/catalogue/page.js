@@ -13,7 +13,7 @@ import {
   DEFAULT_SETTINGS,
 } from '@/lib/constants'
 import { calcSellPrice, formatCurrency } from '@/lib/pricing'
-import { getParts, createPart } from '@/lib/db'
+import { getParts, createPart, updatePart } from '@/lib/db'
 import { useJob } from '@/lib/job-context'
 import Button from '@/components/Button'
 import BackButton from '@/components/BackButton'
@@ -79,7 +79,7 @@ function SelectPill({ label, selected, onToggle, colour = 'green' }) {
   )
 }
 
-function PartCard({ part, onAddToJob }) {
+function PartCard({ part, onAddToJob, onEdit }) {
   return (
     <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg">
       {/* Name + category badge */}
@@ -100,11 +100,16 @@ function PartCard({ part, onAddToJob }) {
         ) : null}
       </p>
 
-      {/* Pricing row */}
-      <div className="flex items-baseline gap-aq-lg mb-aq-sm">
+      {/* Pricing row — Cost / RRP / Sell */}
+      <div className="flex items-baseline gap-aq-lg mb-aq-sm flex-wrap">
         <span className="text-caption text-aq-muted">
           Cost {formatCurrency(part.cost_price)}
         </span>
+        {part.rrp != null && (
+          <span className="text-caption text-aq-muted">
+            RRP {formatCurrency(part.rrp)}
+          </span>
+        )}
         <span className="text-secondary font-medium text-aq-green">
           Sell {formatCurrency(part.sell_price)}
         </span>
@@ -123,12 +128,19 @@ function PartCard({ part, onAddToJob }) {
         </div>
       )}
 
-      {/* Add to job button — only shown when accessed from a job context */}
-      {onAddToJob && (
-        <div className="mt-aq-md pt-aq-md border-t border-aq-border">
-          <Button variant="primary" fullWidth onClick={onAddToJob}>
-            Add to job
-          </Button>
+      {/* Action buttons */}
+      {(onAddToJob || onEdit) && (
+        <div className="mt-aq-md pt-aq-md border-t border-aq-border flex gap-aq-sm">
+          {onAddToJob && (
+            <Button variant="primary" fullWidth onClick={onAddToJob}>
+              Add to job
+            </Button>
+          )}
+          {onEdit && (
+            <Button variant="secondary" fullWidth onClick={onEdit}>
+              Edit
+            </Button>
+          )}
         </div>
       )}
     </div>
@@ -353,6 +365,202 @@ function AddPartForm({ onSave, onClose }) {
   )
 }
 
+function EditPartForm({ part, onSave, onClose }) {
+  const [name, setName] = useState(part.name || '')
+  const [sku, setSku] = useState(part.sku || '')
+  const [supplier, setSupplier] = useState(part.supplier || '')
+  const [costPrice, setCostPrice] = useState(String(part.cost_price ?? ''))
+  const [rrp, setRrp] = useState(part.rrp != null ? String(part.rrp) : '')
+  const [sellPrice, setSellPrice] = useState(String(part.sell_price ?? ''))
+  const [category, setCategory] = useState(part.category || '')
+  const [unit, setUnit] = useState(part.unit || 'each')
+  const [fits, setFits] = useState(part.fits || [])
+  const [fixes, setFixes] = useState(part.fixes || [])
+
+  function handleRrpChange(val) {
+    setRrp(val)
+    const r = parseFloat(val)
+    if (!isNaN(r) && r > 0) {
+      setSellPrice((r * 1.2).toFixed(2))
+    }
+  }
+
+  function toggleFit(v) {
+    setFits((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]))
+  }
+  function toggleFix(v) {
+    setFixes((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]))
+  }
+
+  function handleSave() {
+    const cost = parseFloat(costPrice) || 0
+    const sell = parseFloat(sellPrice) || 0
+    const rrpVal = parseFloat(rrp) || null
+    if (!name.trim() || !category || cost <= 0 || sell <= 0) return
+    onSave({
+      ...part,
+      name: name.trim(),
+      sku: sku.trim(),
+      supplier: supplier.trim(),
+      cost_price: cost,
+      rrp: rrpVal,
+      sell_price: sell,
+      category,
+      unit,
+      fits,
+      fixes,
+    })
+  }
+
+  const cost = parseFloat(costPrice) || 0
+  const sell = parseFloat(sellPrice) || 0
+  const canSave = name.trim() && category && cost > 0 && sell > 0
+
+  return (
+    <div className="fixed inset-0 z-50 bg-white overflow-y-auto">
+      <div className="max-w-[480px] mx-auto px-aq-lg pb-[88px]">
+
+        <div className="flex items-center gap-aq-sm py-aq-xl sticky top-0 bg-white border-b border-aq-border -mx-aq-lg px-aq-lg mb-aq-lg">
+          <button
+            type="button"
+            onClick={onClose}
+            className="min-h-tap min-w-[48px] flex items-center justify-center text-aq-ink hover:text-aq-green transition-colors -ml-3"
+            aria-label="Close"
+          >
+            <XIcon />
+          </button>
+          <h2 className="text-page-title font-medium text-aq-ink">Edit part</h2>
+        </div>
+
+        <div className="flex flex-col gap-aq-lg">
+
+          <div>
+            <label className="block text-secondary text-aq-muted mb-aq-sm" htmlFor="edit-name">
+              Part name *
+            </label>
+            <input id="edit-name" type="text" value={name}
+              onChange={(e) => setName(e.target.value)}
+              className={inputClass} />
+          </div>
+
+          <div>
+            <label className="block text-secondary text-aq-muted mb-aq-sm" htmlFor="edit-sku">
+              SKU
+            </label>
+            <input id="edit-sku" type="text" value={sku}
+              onChange={(e) => setSku(e.target.value)}
+              className={inputClass} />
+          </div>
+
+          <div>
+            <label className="block text-secondary text-aq-muted mb-aq-sm" htmlFor="edit-supplier">
+              Supplier
+            </label>
+            <input id="edit-supplier" type="text" value={supplier}
+              onChange={(e) => setSupplier(e.target.value)}
+              className={inputClass} />
+          </div>
+
+          <div>
+            <p className="text-secondary text-aq-muted mb-aq-sm">Unit</p>
+            <div className="flex flex-wrap gap-aq-sm">
+              {UNITS.map((u) => (
+                <button key={u} type="button" onClick={() => setUnit(u)}
+                  className={`min-h-tap px-aq-lg text-secondary font-medium rounded-aq-lg border transition-colors duration-150 ${
+                    unit === u
+                      ? 'border-aq-green bg-aq-green-tint text-aq-green'
+                      : 'border-aq-border text-aq-muted bg-white hover:bg-aq-surface'
+                  }`}>
+                  {u}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-secondary text-aq-muted mb-aq-sm" htmlFor="edit-cost">
+              Cost price (ex GST) *
+            </label>
+            <input id="edit-cost" type="number" value={costPrice}
+              onChange={(e) => setCostPrice(e.target.value)}
+              placeholder="0.00"
+              className={inputClass} />
+          </div>
+
+          <div>
+            <label className="block text-secondary text-aq-muted mb-aq-sm" htmlFor="edit-rrp">
+              RRP (optional)
+            </label>
+            <input id="edit-rrp" type="number" value={rrp}
+              onChange={(e) => handleRrpChange(e.target.value)}
+              placeholder="0.00"
+              className={inputClass} />
+            {rrp && parseFloat(rrp) > 0 && (
+              <p className="text-caption text-aq-muted mt-aq-sm">
+                Sell suggested at {formatCurrency(parseFloat(rrp) * 1.2)} (RRP x 1.2)
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-secondary text-aq-muted mb-aq-sm" htmlFor="edit-sell">
+              Sell price *
+            </label>
+            <input id="edit-sell" type="number" value={sellPrice}
+              onChange={(e) => setSellPrice(e.target.value)}
+              placeholder="0.00"
+              className={inputClass} />
+          </div>
+
+          <div>
+            <p className="text-secondary text-aq-muted mb-aq-sm">Category *</p>
+            <div className="flex flex-wrap gap-aq-sm">
+              {CATEGORIES.map((c) => (
+                <button key={c} type="button" onClick={() => setCategory(c)}
+                  className={`min-h-tap px-aq-lg text-secondary font-medium rounded-aq-lg border transition-colors duration-150 ${
+                    category === c
+                      ? 'border-aq-green bg-aq-green-tint text-aq-green'
+                      : 'border-aq-border text-aq-muted bg-white hover:bg-aq-surface'
+                  }`}>
+                  {PART_CATEGORY_LABELS[c]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-secondary text-aq-muted mb-aq-sm">Fits</p>
+            <div className="flex flex-wrap gap-aq-sm">
+              {FITS_VALUES.map((v) => (
+                <SelectPill key={v} label={JOINERY_TYPE_LABELS[v]} selected={fits.includes(v)}
+                  onToggle={() => toggleFit(v)} colour="green" />
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-secondary text-aq-muted mb-aq-sm">Fixes</p>
+            <div className="flex flex-wrap gap-aq-sm">
+              {FIXES_VALUES.map((v) => (
+                <SelectPill key={v} label={FIXES_LABELS[v]} selected={fixes.includes(v)}
+                  onToggle={() => toggleFix(v)} colour="gold" />
+              ))}
+            </div>
+          </div>
+
+        </div>
+
+        <div className="mt-aq-2xl">
+          <Button variant="primary" fullWidth disabled={!canSave} onClick={handleSave}>
+            Save changes
+          </Button>
+        </div>
+
+      </div>
+    </div>
+  )
+}
+
 function CatalogueContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -366,6 +574,7 @@ function CatalogueContent() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [addFormOpen, setAddFormOpen] = useState(false)
+  const [editingPart, setEditingPart] = useState(null)
 
   useEffect(() => {
     getParts().then((data) => {
@@ -389,6 +598,12 @@ function CatalogueContent() {
     setParts((prev) => [...prev, newPart])
     setAddFormOpen(false)
     createPart(newPart)
+  }
+
+  function handleEditSave(updatedPart) {
+    setParts((prev) => prev.map((p) => (p.id === updatedPart.id ? updatedPart : p)))
+    setEditingPart(null)
+    updatePart(updatedPart.id, updatedPart)
   }
 
   function handleAddToJob(part) {
@@ -418,6 +633,13 @@ function CatalogueContent() {
         <AddPartForm
           onSave={handleSavePart}
           onClose={() => setAddFormOpen(false)}
+        />
+      )}
+      {editingPart && (
+        <EditPartForm
+          part={editingPart}
+          onSave={handleEditSave}
+          onClose={() => setEditingPart(null)}
         />
       )}
 
@@ -490,6 +712,7 @@ function CatalogueContent() {
                   key={part.id}
                   part={part}
                   onAddToJob={fromJob ? () => handleAddToJob(part) : null}
+                  onEdit={!fromJob ? () => setEditingPart(part) : null}
                 />
               ))}
             </div>
