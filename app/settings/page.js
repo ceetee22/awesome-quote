@@ -1,10 +1,17 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { v4 as uuidv4 } from 'uuid'
 import { useSettings } from '@/lib/settings-context'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
+import {
+  getSuppliers,
+  createSupplier,
+  updateSupplier,
+  deleteSupplier,
+  setDefaultSupplier,
+} from '@/lib/db'
 import Button from '@/components/Button'
 import BackButton from '@/components/BackButton'
 import ConfirmModal from '@/components/ConfirmModal'
@@ -129,6 +136,154 @@ function ZoneCard({ zone, isEditing, onEdit, onSaveEdit, onCancelEdit, onDelete,
   )
 }
 
+const EMPTY_SUPPLIER = { name: '', email: '', phone: '', contact_person: '', notes: '' }
+
+function SuppliersSection() {
+  const [suppliers, setSuppliers] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [editingId, setEditingId] = useState(null)
+  const [editState, setEditState] = useState(null)
+  const [addOpen, setAddOpen] = useState(false)
+  const [addState, setAddState] = useState(EMPTY_SUPPLIER)
+  const [deleteId, setDeleteId] = useState(null)
+
+  useEffect(() => {
+    getSuppliers().then((data) => { setSuppliers(data); setLoading(false) })
+  }, [])
+
+  function startEdit(supplier) {
+    setEditingId(supplier.id)
+    setEditState({
+      name: supplier.name || '',
+      email: supplier.email || '',
+      phone: supplier.phone || '',
+      contact_person: supplier.contact_person || '',
+      notes: supplier.notes || '',
+    })
+  }
+
+  async function saveEdit() {
+    await updateSupplier(editingId, editState)
+    setSuppliers((prev) => prev.map((s) => s.id === editingId ? { ...s, ...editState } : s))
+    setEditingId(null)
+    setEditState(null)
+  }
+
+  async function handleSetDefault(id) {
+    await setDefaultSupplier(id)
+    setSuppliers((prev) => prev.map((s) => ({ ...s, is_default: s.id === id })))
+  }
+
+  async function confirmDelete() {
+    await deleteSupplier(deleteId)
+    setSuppliers((prev) => prev.filter((s) => s.id !== deleteId))
+    setDeleteId(null)
+  }
+
+  async function handleAdd() {
+    if (!addState.name.trim()) return
+    await createSupplier({ ...addState })
+    const updated = await getSuppliers()
+    setSuppliers(updated)
+    setAddOpen(false)
+    setAddState(EMPTY_SUPPLIER)
+  }
+
+  const supplierFields = (state, onChange) => (
+    <div className="flex flex-col gap-aq-sm">
+      <div>
+        <p className={labelClass}>Name</p>
+        <input type="text" value={state.name} onChange={(e) => onChange('name', e.target.value)} className={inputClass} />
+      </div>
+      <div>
+        <p className={labelClass}>Email</p>
+        <input type="email" value={state.email} onChange={(e) => onChange('email', e.target.value)} placeholder="orders@supplier.co.nz" className={inputClass} />
+      </div>
+      <div>
+        <p className={labelClass}>Phone</p>
+        <input type="tel" value={state.phone} onChange={(e) => onChange('phone', e.target.value)} placeholder="e.g. 09 123 4567" className={inputClass} />
+      </div>
+      <div>
+        <p className={labelClass}>Contact person</p>
+        <input type="text" value={state.contact_person} onChange={(e) => onChange('contact_person', e.target.value)} className={inputClass} />
+      </div>
+      <div>
+        <p className={labelClass}>Notes</p>
+        <input type="text" value={state.notes} onChange={(e) => onChange('notes', e.target.value)} className={inputClass} />
+      </div>
+    </div>
+  )
+
+  if (loading) {
+    return <p className="text-secondary text-aq-muted">Loading suppliers...</p>
+  }
+
+  return (
+    <>
+      <div className="flex flex-col gap-[10px]">
+        {suppliers.map((supplier) => (
+          <div key={supplier.id} className={`bg-aq-surface border rounded-aq-xl p-aq-lg ${editingId === supplier.id ? 'border-aq-green bg-aq-green-tint' : 'border-aq-border'}`}>
+            {editingId === supplier.id && editState ? (
+              <>
+                {supplierFields(editState, (key, val) => setEditState((prev) => ({ ...prev, [key]: val })))}
+                <div className="flex gap-aq-sm mt-aq-md">
+                  <Button variant="primary" className="flex-1" onClick={saveEdit}>Save</Button>
+                  <Button variant="secondary" className="flex-1" onClick={() => { setEditingId(null); setEditState(null) }}>Cancel</Button>
+                </div>
+              </>
+            ) : (
+              <div className="flex items-start justify-between gap-aq-sm">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-aq-sm mb-aq-xs">
+                    <p className="text-secondary font-medium text-aq-ink">{supplier.name}</p>
+                    {supplier.is_default && (
+                      <span className="text-caption font-medium text-aq-green bg-aq-green-tint border border-aq-green-tint-border px-2 py-0.5 rounded-aq-sm">Default</span>
+                    )}
+                  </div>
+                  {supplier.email && <p className="text-caption text-aq-muted">{supplier.email}</p>}
+                  {supplier.phone && <p className="text-caption text-aq-muted">{supplier.phone}</p>}
+                </div>
+                <div className="flex flex-col gap-aq-xs shrink-0">
+                  <Button variant="secondary" onClick={() => startEdit(supplier)}>Edit</Button>
+                  {!supplier.is_default && (
+                    <Button variant="secondary" onClick={() => handleSetDefault(supplier.id)}>Set default</Button>
+                  )}
+                  {!supplier.is_default && (
+                    <Button variant="destructive" onClick={() => setDeleteId(supplier.id)}>Remove</Button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+
+        {/* Add supplier */}
+        {addOpen ? (
+          <div className="bg-aq-green-tint border border-aq-green-tint-border rounded-aq-xl p-aq-lg">
+            {supplierFields(addState, (key, val) => setAddState((prev) => ({ ...prev, [key]: val })))}
+            <div className="flex gap-aq-sm mt-aq-md">
+              <Button variant="primary" className="flex-1" onClick={handleAdd} disabled={!addState.name.trim()}>Add</Button>
+              <Button variant="secondary" className="flex-1" onClick={() => { setAddOpen(false); setAddState(EMPTY_SUPPLIER) }}>Cancel</Button>
+            </div>
+          </div>
+        ) : (
+          <Button variant="secondary" fullWidth onClick={() => setAddOpen(true)}>Add supplier</Button>
+        )}
+      </div>
+
+      <ConfirmModal
+        open={!!deleteId}
+        question="Remove this supplier?"
+        confirmLabel="Yes, remove"
+        cancelLabel="Keep"
+        variant="destructive"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteId(null)}
+      />
+    </>
+  )
+}
+
 export default function SettingsPage() {
   const router = useRouter()
   const { settings, updateSettings } = useSettings()
@@ -149,8 +304,6 @@ export default function SettingsPage() {
     hourly_labour_rate: String(settings.hourly_labour_rate),
     default_markup_pct: String(settings.default_markup_pct),
     gst_rate: String(settings.gst_rate),
-    supplier_name: settings.supplier_name,
-    supplier_email: settings.supplier_email,
   })
 
   const [zones, setZones] = useState(settings.callout_zones)
@@ -215,8 +368,6 @@ export default function SettingsPage() {
       hourly_labour_rate: parseFloat(form.hourly_labour_rate) || 85,
       default_markup_pct: parseFloat(form.default_markup_pct) || 50,
       gst_rate: parseFloat(form.gst_rate) || 15,
-      supplier_name: form.supplier_name,
-      supplier_email: form.supplier_email,
       callout_zones: zones,
     })
     setSavedVisible(true)
@@ -355,32 +506,10 @@ export default function SettingsPage() {
               </Button>
             </div>
 
-            {/* Supplier */}
+            {/* Suppliers */}
             <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg">
-              <h2 className="text-section font-medium text-aq-ink mb-aq-lg">Supplier</h2>
-              <div className="flex flex-col gap-aq-md">
-                <div>
-                  <label htmlFor="supplier-name" className={labelClass}>Supplier name</label>
-                  <input
-                    id="supplier-name"
-                    type="text"
-                    value={form.supplier_name}
-                    onChange={(e) => setField('supplier_name', e.target.value)}
-                    className={inputClass}
-                  />
-                </div>
-                <div>
-                  <label htmlFor="supplier-email" className={labelClass}>Supplier email</label>
-                  <input
-                    id="supplier-email"
-                    type="email"
-                    value={form.supplier_email}
-                    onChange={(e) => setField('supplier_email', e.target.value)}
-                    placeholder="orders@supplier.co.nz"
-                    className={inputClass}
-                  />
-                </div>
-              </div>
+              <h2 className="text-section font-medium text-aq-ink mb-aq-lg">Suppliers</h2>
+              <SuppliersSection />
             </div>
 
             {/* Xero */}

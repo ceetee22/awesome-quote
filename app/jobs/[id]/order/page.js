@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useJob } from '@/lib/job-context'
 import { useSettings } from '@/lib/settings-context'
+import { getDefaultSupplier } from '@/lib/db'
 import { formatCurrency } from '@/lib/pricing'
 import { generatePoPdf } from '@/lib/generate-po-pdf'
 import { downloadBlob } from '@/lib/generate-quote-pdf'
@@ -39,6 +40,11 @@ export default function OrderPage() {
   const { settings } = useSettings()
 
   const [phase, setPhase] = useState('review') // review | generating | done
+  const [supplier, setSupplier] = useState(null)
+
+  useEffect(() => {
+    getDefaultSupplier().then(setSupplier)
+  }, [])
 
   // Build order lines from all parts across all job items
   const initialLines = useMemo(() => {
@@ -78,8 +84,8 @@ export default function OrderPage() {
 
   const enabledLines = orderLines.filter((l) => l.enabled)
   const orderTotal = enabledLines.reduce((s, l) => s + l.cost_price * l.qty, 0)
-  const supplierName = settings?.supplier_name || 'Joinery Hardware NZ'
-  const supplierEmail = settings?.supplier_email || ''
+  const supplierName = supplier?.name || settings?.supplier_name || 'Joinery Hardware NZ'
+  const supplierEmail = supplier?.email || settings?.supplier_email || ''
 
   async function handleConfirm() {
     setConfirmOpen(false)
@@ -87,7 +93,7 @@ export default function OrderPage() {
     try {
       const blob = await generatePoPdf({
         job: currentJob,
-        settings,
+        settings: { ...settings, supplier_name: supplierName, supplier_email: supplierEmail },
         orderLines: enabledLines,
       })
       const poNumber = `PO-${(currentJob.id || '').substring(0, 8).toUpperCase()}`
