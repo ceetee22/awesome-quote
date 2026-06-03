@@ -90,8 +90,24 @@ export default function HomePage() {
   const { jobs } = useJob()
   const { settings } = useSettings()
 
+  const STATUS_PRIORITY = {
+    accepted: 0,
+    scheduled: 0,
+    quoted: 1,
+    awaiting: 1,
+    draft: 2,
+    ordered: 3,
+    completed: 4,
+    invoiced: 4,
+  }
+
   const recentJobs = [...jobs]
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    .sort((a, b) => {
+      const pa = STATUS_PRIORITY[a.status] ?? 2
+      const pb = STATUS_PRIORITY[b.status] ?? 2
+      if (pa !== pb) return pa - pb
+      return new Date(b.created_at) - new Date(a.created_at)
+    })
     .slice(0, 5)
 
   return (

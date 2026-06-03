@@ -14,12 +14,12 @@ const STATUS_STYLES = {
 }
 
 const STATUS_LABELS = {
-  draft: 'Draft',
-  quoted: 'Awaiting',
-  awaiting: 'Awaiting',
+  draft: 'Quote in progress',
+  quoted: 'Awaiting response',
+  awaiting: 'Awaiting response',
   accepted: 'Accepted',
   scheduled: 'Scheduled',
-  ordered: 'Ordered',
+  ordered: 'Parts ordered',
   completed: 'Completed',
   invoiced: 'Invoiced',
   custom: 'Custom',
