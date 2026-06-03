@@ -54,7 +54,7 @@ export default function QuotePage() {
     )
   })
 
-  const [labourHours, setLabourHours] = useState(0)
+  const [labourHours, setLabourHours] = useState(currentJob?.labour_hours ?? 0)
   const [calloutFee, setCalloutFee] = useState(
     currentJob?.callout_fee != null ? currentJob.callout_fee : defaultCalloutFee
   )
@@ -85,14 +85,21 @@ export default function QuotePage() {
   }
 
   function handleSendConfirm() {
-    setCurrentJob((prev) => (prev ? { ...prev, status: 'quoted' } : prev))
+    setCurrentJob((prev) =>
+      prev
+        ? { ...prev, status: 'quoted', labour_hours: labourHours, callout_fee: calloutFee, hourly_rate: hourlyRate }
+        : prev
+    )
     setSendModalOpen(false)
-    // replace() so the quote builder is not in the back stack from job detail
     router.replace(`/jobs/${params.id}`)
   }
 
   function handleSaveDraft() {
-    setCurrentJob((prev) => (prev ? { ...prev, status: 'draft' } : prev))
+    setCurrentJob((prev) =>
+      prev
+        ? { ...prev, status: 'draft', labour_hours: labourHours, callout_fee: calloutFee, hourly_rate: hourlyRate }
+        : prev
+    )
     router.push('/')
   }
 

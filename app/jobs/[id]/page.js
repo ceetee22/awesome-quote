@@ -16,6 +16,24 @@ import StatusBadge from '@/components/StatusBadge'
 import DurationPresets from '@/components/DurationPresets'
 import ConfirmModal from '@/components/ConfirmModal'
 
+function ChevronRightIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M9 18l6-6-6-6" />
+    </svg>
+  )
+}
+
 function MapPinIcon() {
   return (
     <svg
@@ -164,6 +182,7 @@ export default function JobDetailPage() {
   const [scheduledTime, setScheduledTime] = useState(currentJob?.scheduled_time || '')
   const [scheduledDuration, setScheduledDuration] = useState(currentJob?.scheduled_duration || 0)
   const [xeroModalOpen, setXeroModalOpen] = useState(false)
+  const [resendModalOpen, setResendModalOpen] = useState(false)
 
   if (!currentJob) {
     return (
@@ -208,9 +227,16 @@ export default function JobDetailPage() {
     setCurrentJob((prev) => ({ ...prev, scheduled_duration: val }))
   }
 
+  const hasItems = (currentJob.items || []).length > 0
+
   function handleXeroConfirm() {
     setCurrentJob((prev) => ({ ...prev, status: 'invoiced' }))
     setXeroModalOpen(false)
+  }
+
+  function handleResendConfirm() {
+    setCurrentJob((prev) => ({ ...prev, status: 'quoted' }))
+    setResendModalOpen(false)
   }
 
   const mapsUrl = currentJob.customer_address
@@ -324,18 +350,18 @@ export default function JobDetailPage() {
 
             {/* Job items summary */}
             <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg">
-              <h2 className="text-section font-medium text-aq-ink mb-aq-md">Items</h2>
+              <button
+                type="button"
+                onClick={() => router.push(`/jobs/${params.id}/items`)}
+                className="flex items-center justify-between w-full mb-aq-md"
+              >
+                <h2 className="text-section font-medium text-aq-ink">Items</h2>
+                <span className="text-aq-muted"><ChevronRightIcon /></span>
+              </button>
 
-              {(currentJob.items || []).length === 0 ? (
+              {!hasItems ? (
                 <div className="mb-aq-md">
                   <p className="text-secondary text-aq-muted mb-aq-md">No items yet.</p>
-                  <Button
-                    variant="secondary"
-                    fullWidth
-                    onClick={() => router.push(`/jobs/${params.id}/items`)}
-                  >
-                    Add items
-                  </Button>
                 </div>
               ) : (
                 <div className="mb-aq-md">
@@ -388,6 +414,52 @@ export default function JobDetailPage() {
                 <span className="text-body font-medium text-aq-ink">{formatCurrency(jobTotal)}</span>
               </div>
             </div>
+
+            {/* Status-based action buttons */}
+            {currentJob.status === 'draft' && (
+              <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg">
+                <div className="flex flex-col gap-aq-sm">
+                  {hasItems ? (
+                    <>
+                      <Button variant="primary" fullWidth onClick={() => router.push(`/jobs/${params.id}/quote`)}>
+                        Build quote
+                      </Button>
+                      <Button variant="secondary" fullWidth onClick={() => router.push(`/jobs/${params.id}/items`)}>
+                        Edit items
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button variant="primary" fullWidth onClick={() => router.push(`/jobs/${params.id}/items`)}>
+                        Add items
+                      </Button>
+                      <Button variant="secondary" fullWidth onClick={() => router.push(`/jobs/${params.id}/quote`)}>
+                        Build quote
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {currentJob.status === 'quoted' && (
+              <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg">
+                <div className="flex flex-col gap-aq-sm">
+                  <Button variant="primary" fullWidth onClick={() => setResendModalOpen(true)}>
+                    Resend quote
+                  </Button>
+                  <Button variant="secondary" fullWidth onClick={() => router.push(`/jobs/${params.id}/quote`)}>
+                    Edit quote
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {currentJob.status === 'invoiced' && (
+              <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg">
+                <p className="text-secondary text-aq-muted text-center">Job complete</p>
+              </div>
+            )}
 
             {/* Status tracker */}
             <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg">
@@ -454,6 +526,15 @@ export default function JobDetailPage() {
         cancelLabel="Not yet"
         onConfirm={handleXeroConfirm}
         onCancel={() => setXeroModalOpen(false)}
+      />
+
+      <ConfirmModal
+        open={resendModalOpen}
+        question={`Resend quote to ${currentJob.customer_name}? This sends the quote for ${formatCurrency(jobTotal)} again.`}
+        confirmLabel="Yes, resend"
+        cancelLabel="Not yet"
+        onConfirm={handleResendConfirm}
+        onCancel={() => setResendModalOpen(false)}
       />
     </>
   )

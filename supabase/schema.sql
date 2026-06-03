@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS jobs (
   status TEXT NOT NULL DEFAULT 'draft',
   callout_fee NUMERIC NOT NULL DEFAULT 0,
   hourly_rate NUMERIC NOT NULL DEFAULT 85,
+  labour_hours NUMERIC NOT NULL DEFAULT 0,
   scheduled_date DATE,
   scheduled_time TEXT,
   scheduled_duration NUMERIC,
@@ -63,6 +64,9 @@ CREATE TABLE IF NOT EXISTS jobs (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Upgrading from v0.14.0? Run this line only if the column doesn't exist yet:
+-- ALTER TABLE jobs ADD COLUMN IF NOT EXISTS labour_hours NUMERIC NOT NULL DEFAULT 0;
 
 -- Job items
 CREATE TABLE IF NOT EXISTS job_items (
