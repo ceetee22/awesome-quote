@@ -304,6 +304,12 @@ export default function SettingsPage() {
     hourly_labour_rate: String(settings.hourly_labour_rate),
     default_markup_pct: String(settings.default_markup_pct),
     gst_rate: String(settings.gst_rate),
+    gst_number: settings.gst_number || '',
+    bank_account_name: settings.bank_account_name || '',
+    bank_name: settings.bank_name || '',
+    bank_account_number: settings.bank_account_number || '',
+    payment_terms: settings.payment_terms || 'Payment due on completion of work.',
+    terms_and_conditions: settings.terms_and_conditions || '',
   })
 
   const [zones, setZones] = useState(settings.callout_zones)
@@ -369,6 +375,12 @@ export default function SettingsPage() {
       default_markup_pct: parseFloat(form.default_markup_pct) || 50,
       gst_rate: parseFloat(form.gst_rate) || 15,
       callout_zones: zones,
+      gst_number: form.gst_number,
+      bank_account_name: form.bank_account_name,
+      bank_name: form.bank_name,
+      bank_account_number: form.bank_account_number,
+      payment_terms: form.payment_terms,
+      terms_and_conditions: form.terms_and_conditions,
     })
     setSavedVisible(true)
     setTimeout(() => setSavedVisible(false), 2000)
@@ -510,6 +522,81 @@ export default function SettingsPage() {
             <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg">
               <h2 className="text-section font-medium text-aq-ink mb-aq-lg">Suppliers</h2>
               <SuppliersSection />
+            </div>
+
+            {/* Payment and terms */}
+            <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg">
+              <h2 className="text-section font-medium text-aq-ink mb-aq-lg">Payment and terms</h2>
+              <div className="flex flex-col gap-aq-md">
+                <div>
+                  <label htmlFor="gst-number" className={labelClass}>GST number</label>
+                  <input
+                    id="gst-number"
+                    type="text"
+                    value={form.gst_number}
+                    onChange={(e) => setField('gst_number', e.target.value)}
+                    placeholder="123-456-789"
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="bank-name" className={labelClass}>Bank name</label>
+                  <input
+                    id="bank-name"
+                    type="text"
+                    value={form.bank_name}
+                    onChange={(e) => setField('bank_name', e.target.value)}
+                    placeholder="e.g. ANZ, ASB, BNZ, Westpac, Kiwibank"
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="bank-account-name" className={labelClass}>Account name</label>
+                  <input
+                    id="bank-account-name"
+                    type="text"
+                    value={form.bank_account_name}
+                    onChange={(e) => setField('bank_account_name', e.target.value)}
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="bank-account-number" className={labelClass}>Account number</label>
+                  <input
+                    id="bank-account-number"
+                    type="text"
+                    value={form.bank_account_number}
+                    onChange={(e) => setField('bank_account_number', e.target.value)}
+                    placeholder="00-0000-0000000-00"
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="payment-terms" className={labelClass}>Payment terms</label>
+                  <input
+                    id="payment-terms"
+                    type="text"
+                    value={form.payment_terms}
+                    onChange={(e) => setField('payment_terms', e.target.value)}
+                    placeholder="Payment due on completion of work."
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="terms-conditions" className={labelClass}>Terms and conditions</label>
+                  <textarea
+                    id="terms-conditions"
+                    rows={6}
+                    value={form.terms_and_conditions}
+                    onChange={(e) => setField('terms_and_conditions', e.target.value)}
+                    placeholder="Enter your terms and conditions here."
+                    className="w-full bg-white border border-aq-border rounded-aq-md px-4 py-3 text-body text-aq-ink placeholder:text-aq-subtle focus:outline-none focus:border-aq-green transition-colors duration-150 resize-y"
+                  />
+                  <p className="text-caption text-aq-muted mt-aq-sm">
+                    These appear at the bottom of every quote and invoice.
+                  </p>
+                </div>
+              </div>
             </div>
 
             {/* Xero */}
