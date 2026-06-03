@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useJob } from '@/lib/job-context'
 import { useSettings } from '@/lib/settings-context'
@@ -39,8 +39,6 @@ export default function QuotePage() {
   const GST_RATE = settings.gst_rate
   const zones = settings.callout_zones || []
 
-  // Flatten all parts from all job items into a single quote parts list.
-  // Each part gets a unique _key so individual lines can be removed.
   const [quoteParts, setQuoteParts] = useState(() => {
     if (!currentJob) return []
     return (currentJob.items || []).flatMap((item, iIdx) =>
@@ -57,7 +55,6 @@ export default function QuotePage() {
 
   const [labourHours, setLabourHours] = useState(currentJob?.labour_hours ?? 0)
 
-  // Callout fee state — zone pill selection + optional manual override
   const initFee = currentJob?.callout_fee ?? zones[0]?.fee ?? 0
   const initZone = currentJob?.callout_fee != null
     ? zones.find((z) => z.fee === currentJob.callout_fee)
@@ -69,13 +66,32 @@ export default function QuotePage() {
   )
 
   const [sendModalOpen, setSendModalOpen] = useState(false)
-  const [sendPhase, setSendPhase] = useState(null) // null | 'generating' | 'done'
+  const [sendPhase, setSendPhase] = useState(null)
+
+  // Revise mode state
+  const [isRevise, setIsRevise] = useState(false)
+  const [originalTotal] = useState(() => {
+    if (!currentJob) return 0
+    const partsSum = (currentJob.items || [])
+      .flatMap((i) => i.parts || [])
+      .reduce((s, p) => s + p.sell_price * p.qty, 0)
+    const sub = partsSum + (currentJob.labour_hours || 0) * hourlyRate + (currentJob.callout_fee || 0)
+    return sub + calcGst(sub, GST_RATE)
+  })
+  const [reviseNote, setReviseNote] = useState('')
+  const [reviseModalOpen, setReviseModalOpen] = useState(false)
+
+  useEffect(() => {
+    setIsRevise(new URLSearchParams(window.location.search).get('revise') === 'true')
+  }, [])
 
   const partsSubtotal = quoteParts.reduce((s, p) => s + p.sell_price * p.qty, 0)
   const labourTotal = labourHours * hourlyRate
   const subtotal = partsSubtotal + labourTotal + calloutFee
   const gst = calcGst(subtotal, GST_RATE)
   const total = subtotal + gst
+
+  const newVersion = (currentJob?.quote_version || 1) + 1
 
   function removePart(key) {
     setQuoteParts((prev) => prev.filter((p) => p._key !== key))
@@ -96,7 +112,6 @@ export default function QuotePage() {
   async function handleSendConfirm() {
     setSendModalOpen(false)
     setSendPhase('generating')
-
     try {
       const blob = await generateQuotePdf({
         job: currentJob,
@@ -116,10 +131,50 @@ export default function QuotePage() {
     } catch (err) {
       console.error('PDF generation failed:', err)
     }
-
     setCurrentJob((prev) =>
       prev
         ? { ...prev, status: 'quoted', labour_hours: labourHours, callout_fee: calloutFee, hourly_rate: hourlyRate }
+        : prev
+    )
+    setSendPhase('done')
+  }
+
+  async function handleReviseConfirm() {
+    setReviseModalOpen(false)
+    setSendPhase('generating')
+    try {
+      const blob = await generateQuotePdf({
+        job: currentJob,
+        settings,
+        labourHours,
+        calloutFee,
+        hourlyRate,
+        subtotal,
+        gst,
+        total,
+        acceptanceUrl: `https://awesome-quote.vercel.app/accept/${params.id}`,
+        quoteVersion: newVersion,
+        isRevision: true,
+      })
+      const safeName = (currentJob.customer_name || 'quote')
+        .replace(/[^a-z0-9]/gi, '-')
+        .toLowerCase()
+      downloadBlob(blob, `quote-${safeName}-v${newVersion}.pdf`)
+    } catch (err) {
+      console.error('PDF generation failed:', err)
+    }
+    setCurrentJob((prev) =>
+      prev
+        ? {
+            ...prev,
+            status: 'quoted',
+            labour_hours: labourHours,
+            callout_fee: calloutFee,
+            hourly_rate: hourlyRate,
+            quote_version: newVersion,
+            previous_total: originalTotal,
+            revision_note: reviseNote || null,
+          }
         : prev
     )
     setSendPhase('done')
@@ -183,7 +238,9 @@ export default function QuotePage() {
             onClick={() => router.push(`/jobs/${params.id}/items`)}
             label="Items"
           />
-          <h1 className="text-page-title font-medium text-aq-ink ml-aq-sm">Quote builder</h1>
+          <h1 className="text-page-title font-medium text-aq-ink ml-aq-sm">
+            {isRevise ? `Revising quote (version ${newVersion})` : 'Quote builder'}
+          </h1>
         </div>
 
         {/* Customer summary */}
@@ -345,16 +402,30 @@ export default function QuotePage() {
 
         {/* Actions */}
         <div className="flex flex-col gap-aq-sm">
-          <Button variant="primary" fullWidth onClick={() => setSendModalOpen(true)}>
-            Send quote
-          </Button>
-          <Button variant="secondary" fullWidth onClick={handleSaveDraft}>
-            Save draft
-          </Button>
+          {isRevise ? (
+            <>
+              <Button variant="primary" fullWidth onClick={() => setReviseModalOpen(true)}>
+                Send revised quote
+              </Button>
+              <Button variant="secondary" fullWidth onClick={() => router.push(`/jobs/${params.id}`)}>
+                Cancel
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="primary" fullWidth onClick={() => setSendModalOpen(true)}>
+                Send quote
+              </Button>
+              <Button variant="secondary" fullWidth onClick={handleSaveDraft}>
+                Save draft
+              </Button>
+            </>
+          )}
         </div>
 
       </div>
 
+      {/* Normal send modal */}
       <ConfirmModal
         open={sendModalOpen}
         question={`Send this quote for ${formatCurrency(total)} to ${currentJob.customer_name}?`}
@@ -363,6 +434,54 @@ export default function QuotePage() {
         onConfirm={handleSendConfirm}
         onCancel={() => setSendModalOpen(false)}
       />
+
+      {/* Revise confirm modal — custom, has text input for revision note */}
+      {reviseModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-aq-xl"
+          style={{ backgroundColor: 'rgba(31, 45, 55, 0.5)' }}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="bg-white rounded-aq-xl p-aq-xl w-full max-w-sm shadow-lg">
+            <p className="text-body font-medium text-aq-ink mb-aq-sm">
+              Send revised quote to {currentJob.customer_name}?
+            </p>
+            <p className="text-secondary text-aq-muted mb-aq-lg">
+              The new total is {formatCurrency(total)}, up from {formatCurrency(originalTotal)}. They will need to accept again.
+            </p>
+            <div className="mb-aq-lg">
+              <label className="block text-secondary text-aq-muted mb-aq-sm">
+                Note about changes (optional)
+              </label>
+              <input
+                type="text"
+                value={reviseNote}
+                onChange={(e) => setReviseNote(e.target.value)}
+                placeholder="e.g. Added second roller set"
+                className="w-full bg-white border border-aq-border rounded-aq-md min-h-tap px-3 text-body text-aq-ink focus:outline-none focus:border-aq-green transition-colors"
+              />
+            </div>
+            <div className="flex flex-col gap-aq-sm">
+              <button
+                type="button"
+                onClick={handleReviseConfirm}
+                className="w-full min-h-tap text-btn font-medium rounded-aq-lg bg-aq-green text-white hover:bg-aq-green-hover active:bg-aq-green-pressed transition-colors duration-150"
+              >
+                Yes, send revised quote
+              </button>
+              <button
+                type="button"
+                onClick={() => setReviseModalOpen(false)}
+                className="w-full min-h-tap text-btn font-medium rounded-aq-lg bg-white text-aq-ink border border-aq-border hover:bg-aq-surface active:bg-aq-border transition-colors duration-150"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }

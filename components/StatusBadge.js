@@ -11,6 +11,8 @@ const STATUS_STYLES = {
   completed: 'bg-aq-status-completed text-white',
   invoiced: 'bg-aq-status-invoiced text-white',
   custom: 'bg-aq-status-custom text-aq-ink',
+  declined: 'bg-aq-status-draft text-aq-muted',
+  unpaid: 'bg-aq-status-awaiting text-white',
 }
 
 const STATUS_LABELS = {
@@ -23,6 +25,8 @@ const STATUS_LABELS = {
   completed: 'Completed',
   invoiced: 'Invoiced',
   custom: 'Custom',
+  declined: 'Declined',
+  unpaid: 'Unpaid',
 }
 
 export default function StatusBadge({ status, label }) {
