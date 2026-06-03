@@ -37,7 +37,7 @@ export default function QuotePage() {
 
   const hourlyRate = currentJob?.hourly_rate || settings.hourly_labour_rate
   const GST_RATE = settings.gst_rate
-  const defaultCalloutFee = settings.callout_zones?.[0]?.fee ?? 50
+  const zones = settings.callout_zones || []
 
   // Flatten all parts from all job items into a single quote parts list.
   // Each part gets a unique _key so individual lines can be removed.
@@ -56,13 +56,18 @@ export default function QuotePage() {
   })
 
   const [labourHours, setLabourHours] = useState(currentJob?.labour_hours ?? 0)
-  const [calloutFee, setCalloutFee] = useState(
-    currentJob?.callout_fee != null ? currentJob.callout_fee : defaultCalloutFee
+
+  // Callout fee state — zone pill selection + optional manual override
+  const initFee = currentJob?.callout_fee ?? zones[0]?.fee ?? 0
+  const initZone = currentJob?.callout_fee != null
+    ? zones.find((z) => z.fee === currentJob.callout_fee)
+    : zones[0]
+  const [calloutFee, setCalloutFee] = useState(initFee)
+  const [selectedZoneId, setSelectedZoneId] = useState(initZone?.id ?? null)
+  const [manualInput, setManualInput] = useState(
+    currentJob?.callout_fee != null && !initZone ? String(initFee) : ''
   )
-  const [overriding, setOverriding] = useState(false)
-  const [overrideInput, setOverrideInput] = useState(
-    String(currentJob?.callout_fee != null ? currentJob.callout_fee : defaultCalloutFee)
-  )
+
   const [sendModalOpen, setSendModalOpen] = useState(false)
   const [sendPhase, setSendPhase] = useState(null) // null | 'generating' | 'done'
 
@@ -76,14 +81,16 @@ export default function QuotePage() {
     setQuoteParts((prev) => prev.filter((p) => p._key !== key))
   }
 
-  function showOverride() {
-    setOverrideInput(String(calloutFee))
-    setOverriding(true)
+  function selectZone(zone) {
+    setSelectedZoneId(zone.id)
+    setCalloutFee(zone.fee)
+    setManualInput('')
   }
 
-  function commitOverride() {
-    setCalloutFee(parseFloat(overrideInput) || 0)
-    setOverriding(false)
+  function handleManualInput(val) {
+    setManualInput(val)
+    setSelectedZoneId(null)
+    setCalloutFee(parseFloat(val) || 0)
   }
 
   async function handleSendConfirm() {
@@ -270,37 +277,50 @@ export default function QuotePage() {
 
         {/* Callout fee */}
         <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg mb-aq-lg">
-          <h2 className="text-section font-medium text-aq-ink mb-aq-md">Callout fee</h2>
-          {overriding ? (
-            <div className="flex items-center gap-aq-sm">
-              <input
-                type="number"
-                value={overrideInput}
-                onChange={(e) => setOverrideInput(e.target.value)}
-                placeholder="0.00"
-                className="flex-1 bg-white border border-aq-border rounded-aq-md min-h-tap px-4 text-body text-aq-ink focus:outline-none focus:border-aq-green transition-colors"
-              />
-              <Button variant="primary" onClick={commitOverride}>
-                Set
-              </Button>
+          <div className="flex items-center justify-between mb-aq-md">
+            <div>
+              <h2 className="text-body font-medium text-aq-ink">Callout fee</h2>
+              <p className="text-caption text-aq-muted mt-[2px]">
+                {selectedZoneId ? zones.find((z) => z.id === selectedZoneId)?.name : 'Custom'}
+              </p>
             </div>
-          ) : (
-            <div className="flex items-center justify-between">
-              <span className="text-secondary text-aq-muted">Local zone</span>
-              <div className="flex items-center gap-aq-md">
-                <span className="text-body font-medium text-aq-ink">
-                  {formatCurrency(calloutFee)}
-                </span>
+            <span className="text-body font-medium text-aq-ink">{formatCurrency(calloutFee)}</span>
+          </div>
+
+          {/* Zone pills */}
+          {zones.length > 0 && (
+            <div className="flex flex-wrap gap-aq-sm mb-aq-md">
+              {zones.map((zone) => (
                 <button
+                  key={zone.id}
                   type="button"
-                  onClick={showOverride}
-                  className="text-aq-green text-secondary font-medium min-h-tap px-aq-sm flex items-center"
+                  onClick={() => selectZone(zone)}
+                  className={`min-h-tap px-aq-lg text-secondary font-medium rounded-aq-lg border transition-colors duration-150 ${
+                    selectedZoneId === zone.id
+                      ? 'border-aq-green bg-aq-green-tint text-aq-green'
+                      : 'border-aq-border bg-white text-aq-muted hover:bg-aq-surface'
+                  }`}
                 >
-                  Change
+                  {zone.name} {formatCurrency(zone.fee)}
                 </button>
-              </div>
+              ))}
             </div>
           )}
+
+          {/* Manual override */}
+          <p className="text-caption text-aq-muted mb-aq-sm">Manual override</p>
+          <div className="flex items-stretch border border-aq-border rounded-aq-md overflow-hidden min-h-tap focus-within:border-aq-green transition-colors duration-150 bg-white">
+            <span className="px-3 flex items-center text-body text-aq-muted bg-aq-surface border-r border-aq-border shrink-0">
+              $
+            </span>
+            <input
+              type="number"
+              value={manualInput}
+              onChange={(e) => handleManualInput(e.target.value)}
+              placeholder="Enter custom amount"
+              className="flex-1 px-3 text-body text-aq-ink bg-white focus:outline-none min-w-0"
+            />
+          </div>
         </div>
 
         {/* Totals */}
