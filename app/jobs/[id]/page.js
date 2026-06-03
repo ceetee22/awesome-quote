@@ -98,16 +98,28 @@ function getFaultLabel(joineryType, fault) {
 
 function formatScheduledDateTime(date, time) {
   try {
-    const d = new Date(`${date}T${time}`)
+    const d = new Date(`${date}T${time || '00:00'}`)
     const datePart = d.toLocaleDateString('en-NZ', {
       weekday: 'long', day: 'numeric', month: 'long',
     })
+    if (!time) return datePart
     const timePart = d
       .toLocaleTimeString('en-NZ', { hour: 'numeric', minute: '2-digit', hour12: true })
       .toLowerCase()
     return `${datePart}, ${timePart}`
   } catch {
-    return `${date} ${time}`
+    return `${date} ${time || ''}`
+  }
+}
+
+function formatPaidDate(isoString) {
+  if (!isoString) return ''
+  try {
+    return new Date(isoString).toLocaleDateString('en-NZ', {
+      day: 'numeric', month: 'long', year: 'numeric',
+    })
+  } catch {
+    return ''
   }
 }
 
@@ -132,14 +144,19 @@ export default function JobDetailPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id])
 
-  const [scheduledDate, setScheduledDate]       = useState(currentJob?.scheduled_date     || '')
-  const [scheduledTime, setScheduledTime]       = useState(currentJob?.scheduled_time     || '')
+  const [scheduledDate, setScheduledDate]         = useState(currentJob?.scheduled_date     || '')
+  const [scheduledTime, setScheduledTime]         = useState(currentJob?.scheduled_time     || '')
   const [scheduledDuration, setScheduledDuration] = useState(currentJob?.scheduled_duration || 0)
-  const [scheduleOpen, setScheduleOpen]         = useState(false)
-  const [xeroModalOpen, setXeroModalOpen]       = useState(false)
-  const [resendModalOpen, setResendModalOpen]   = useState(false)
+  const [scheduleOpen, setScheduleOpen]           = useState(false)
+  const [rescheduleMsg, setRescheduleMsg]         = useState('')
+
+  const [xeroModalOpen, setXeroModalOpen]         = useState(false)
+  const [resendModalOpen, setResendModalOpen]     = useState(false)
   const [completeModalOpen, setCompleteModalOpen] = useState(false)
-  const [invoiceModalOpen, setInvoiceModalOpen] = useState(false)
+  const [invoiceModalOpen, setInvoiceModalOpen]   = useState(false)
+  const [declineModalOpen, setDeclineModalOpen]   = useState(false)
+  const [payModalOpen, setPayModalOpen]           = useState(false)
+  const [unpayModalOpen, setUnpayModalOpen]       = useState(false)
 
   if (!currentJob) {
     return (
@@ -152,13 +169,13 @@ export default function JobDetailPage() {
     )
   }
 
-  const status = currentJob.status
+  const status      = currentJob.status
   const hourlyRate  = currentJob.hourly_rate  || settings.hourly_labour_rate
   const labourHours = currentJob.labour_hours || 0
   const calloutFee  = currentJob.callout_fee  || 0
   const hasItems    = (currentJob.items || []).length > 0
 
-  const partsTotal = (currentJob.items || [])
+  const partsTotal  = (currentJob.items || [])
     .flatMap((i) => i.parts || [])
     .reduce((s, p) => s + p.sell_price * p.qty, 0)
   const labourTotal = labourHours * hourlyRate
@@ -170,7 +187,8 @@ export default function JobDetailPage() {
     ? `https://maps.google.com/?q=${encodeURIComponent(currentJob.customer_address)}`
     : null
 
-  // Schedule handlers — used in ACCEPTED (inline) and SCHEDULED (edit mode)
+  // ── Handlers ────────────────────────────────────────────────────────────────
+
   function handleDateChange(val) {
     setScheduledDate(val)
     setCurrentJob((prev) => ({ ...prev, scheduled_date: val }))
@@ -183,14 +201,27 @@ export default function JobDetailPage() {
     setScheduledDuration(val)
     setCurrentJob((prev) => ({ ...prev, scheduled_duration: val }))
   }
+
   function handleSaveSchedule() {
+    const prevDate = currentJob.scheduled_date
+    const prevTime = currentJob.scheduled_time
+    const isFirstSchedule = currentJob.status !== 'scheduled'
+    const isDateChange = !isFirstSchedule && prevDate && scheduledDate && scheduledDate !== prevDate
+
     setCurrentJob((prev) => ({
       ...prev,
       status: 'scheduled',
       scheduled_date: scheduledDate,
       scheduled_time: scheduledTime,
       scheduled_duration: scheduledDuration,
+      reschedule_count: isDateChange ? (prev.reschedule_count || 0) + 1 : (prev.reschedule_count || 0),
     }))
+
+    if (isDateChange) {
+      setRescheduleMsg(
+        `Job moved from ${formatScheduledDateTime(prevDate, prevTime)} to ${formatScheduledDateTime(scheduledDate, scheduledTime)}.`
+      )
+    }
     setScheduleOpen(false)
   }
 
@@ -214,10 +245,30 @@ export default function JobDetailPage() {
     setInvoiceModalOpen(false)
   }
 
+  function handleDeclineConfirm() {
+    setCurrentJob((prev) => ({ ...prev, status: 'declined' }))
+    setDeclineModalOpen(false)
+  }
+
+  function handleMarkPaid() {
+    setCurrentJob((prev) => ({ ...prev, payment_status: 'paid', paid_at: new Date().toISOString() }))
+    setPayModalOpen(false)
+  }
+
+  function handleMarkUnpaid() {
+    setCurrentJob((prev) => ({ ...prev, payment_status: 'unpaid', paid_at: null }))
+    setUnpayModalOpen(false)
+  }
+
+  function handleRequote() {
+    setCurrentJob((prev) => ({ ...prev, status: 'draft' }))
+    router.push(`/jobs/${params.id}/quote`)
+  }
+
   async function handleDownloadPdf() {
-    const lh = currentJob.labour_hours || 0
-    const cf = currentJob.callout_fee  || 0
-    const hr = currentJob.hourly_rate  || settings.hourly_labour_rate
+    const lh  = currentJob.labour_hours || 0
+    const cf  = currentJob.callout_fee  || 0
+    const hr  = currentJob.hourly_rate  || settings.hourly_labour_rate
     const pts = (currentJob.items || [])
       .flatMap((i) => i.parts || [])
       .reduce((s, p) => s + p.sell_price * p.qty, 0)
@@ -238,9 +289,8 @@ export default function JobDetailPage() {
     }
   }
 
-  // ── Shared blocks ─────────────────────────────────────────────────────────
+  // ── Shared blocks ────────────────────────────────────────────────────────────
 
-  // Customer card — withNavigate controls the Navigate button
   const showNavigate = ['accepted', 'ordered', 'scheduled'].includes(status)
 
   const customerCard = (
@@ -283,7 +333,6 @@ export default function JobDetailPage() {
     </div>
   )
 
-  // Items list rows — reused in both items card (DRAFT) and quote summary card
   const itemRows = (currentJob.items || []).map((item) => {
     const iPartsTotal = (item.parts || []).reduce((s, p) => s + p.sell_price * p.qty, 0)
     const partsCount  = (item.parts || []).length
@@ -315,7 +364,6 @@ export default function JobDetailPage() {
     )
   })
 
-  // Quote summary card — used in QUOTED, ACCEPTED, SCHEDULED, COMPLETED, INVOICED
   const quoteSummaryCard = (
     <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg">
       <h2 className="text-section font-medium text-aq-ink mb-aq-md">Quote summary</h2>
@@ -353,7 +401,6 @@ export default function JobDetailPage() {
     </div>
   )
 
-  // Schedule pickers — used inline in ACCEPTED and as editable block in SCHEDULED
   const schedulePickers = (
     <div className="flex flex-col gap-aq-md">
       <div className="flex gap-aq-sm">
@@ -377,7 +424,6 @@ export default function JobDetailPage() {
     </div>
   )
 
-  // Status tracker — shown for ACCEPTED and beyond
   const showTracker = ['accepted', 'ordered', 'scheduled', 'completed', 'invoiced'].includes(status)
   const trackerCard = (
     <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg">
@@ -386,12 +432,11 @@ export default function JobDetailPage() {
     </div>
   )
 
-  // ── STATUS-SPECIFIC SECTIONS ──────────────────────────────────────────────
+  // ── STATUS-SPECIFIC SECTIONS ─────────────────────────────────────────────────
 
-  // ── DRAFT ──────────────────────────────────────────────────────────────────
+  // ── DRAFT ────────────────────────────────────────────────────────────────────
   const draftContent = status === 'draft' && (
     <>
-      {/* Items card */}
       <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg">
         <button type="button"
           onClick={() => router.push(`/jobs/${params.id}/items`)}
@@ -414,7 +459,6 @@ export default function JobDetailPage() {
         )}
       </div>
 
-      {/* Primary action */}
       <div className="flex flex-col gap-aq-sm">
         {hasItems ? (
           <>
@@ -441,10 +485,9 @@ export default function JobDetailPage() {
     </>
   )
 
-  // ── QUOTED ─────────────────────────────────────────────────────────────────
+  // ── QUOTED ───────────────────────────────────────────────────────────────────
   const quotedContent = status === 'quoted' && (
     <>
-      {/* Waiting indicator */}
       <p className="text-secondary text-aq-muted px-aq-xs">
         Quote sent, waiting for response.
       </p>
@@ -462,16 +505,18 @@ export default function JobDetailPage() {
         <Button variant="secondary" fullWidth onClick={() => setResendModalOpen(true)}>
           Resend quote
         </Button>
+        <Button variant="destructive" fullWidth onClick={() => setDeclineModalOpen(true)}>
+          Mark as declined
+        </Button>
       </div>
     </>
   )
 
-  // ── ACCEPTED / ORDERED ────────────────────────────────────────────────────
+  // ── ACCEPTED / ORDERED ───────────────────────────────────────────────────────
   const acceptedContent = (status === 'accepted' || status === 'ordered') && (
     <>
       {quoteSummaryCard}
 
-      {/* Next steps */}
       <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg">
         <h2 className="text-section font-medium text-aq-ink mb-aq-md">Next steps</h2>
         <div className="flex flex-col gap-aq-sm">
@@ -488,6 +533,10 @@ export default function JobDetailPage() {
           </Button>
           <Button variant="secondary" fullWidth onClick={() => setCompleteModalOpen(true)}>
             Job completed
+          </Button>
+          <Button variant="secondary" fullWidth
+            onClick={() => router.push(`/jobs/${params.id}/quote?revise=true`)}>
+            Revise quote
           </Button>
         </div>
 
@@ -507,9 +556,16 @@ export default function JobDetailPage() {
     </>
   )
 
-  // ── SCHEDULED ─────────────────────────────────────────────────────────────
+  // ── SCHEDULED ────────────────────────────────────────────────────────────────
   const scheduledContent = status === 'scheduled' && (
     <>
+      {/* Reschedule confirmation message */}
+      {rescheduleMsg && (
+        <div className="bg-aq-info-tint border border-aq-info-tint-border rounded-aq-xl px-aq-lg py-aq-md">
+          <p className="text-secondary text-aq-info">{rescheduleMsg}</p>
+        </div>
+      )}
+
       {/* Schedule card */}
       <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg">
         <div className="flex items-center justify-between mb-aq-md">
@@ -533,32 +589,80 @@ export default function JobDetailPage() {
                   : `${scheduledDuration / 60} hr`}
               </p>
             )}
+            {(currentJob.reschedule_count || 0) > 0 && (
+              <p className="text-caption text-aq-muted mt-aq-sm">
+                Rescheduled {currentJob.reschedule_count} {currentJob.reschedule_count === 1 ? 'time' : 'times'}
+              </p>
+            )}
           </div>
         ) : !scheduleOpen ? (
           <p className="text-secondary text-aq-muted">No schedule set.</p>
         ) : null}
 
-        {scheduleOpen && schedulePickers}
+        {scheduleOpen && (
+          <div className="flex flex-col gap-aq-md">
+            {schedulePickers}
+            <Button variant="secondary" fullWidth
+              disabled={!scheduledDate || !scheduledTime}
+              onClick={handleSaveSchedule}>
+              Save schedule
+            </Button>
+          </div>
+        )}
       </div>
 
-      <Button variant="primary" fullWidth onClick={() => setCompleteModalOpen(true)}>
-        Job completed
-      </Button>
+      <div className="flex flex-col gap-aq-sm">
+        <Button variant="primary" fullWidth onClick={() => setCompleteModalOpen(true)}>
+          Job completed
+        </Button>
+        <Button variant="secondary" fullWidth
+          onClick={() => router.push(`/jobs/${params.id}/quote?revise=true`)}>
+          Revise quote
+        </Button>
+      </div>
 
       {quoteSummaryCard}
       {trackerCard}
     </>
   )
 
-  // ── COMPLETED / INVOICED ──────────────────────────────────────────────────
+  // ── COMPLETED / INVOICED ─────────────────────────────────────────────────────
   const completedContent = (status === 'completed' || status === 'invoiced') && (
     <>
-      {/* Status banner */}
       <div className="bg-aq-green-tint border border-aq-green-tint-border rounded-aq-xl px-aq-lg py-aq-md">
         <p className="text-body font-medium text-aq-green text-center">
           {status === 'invoiced' ? 'Invoiced' : 'Job complete'}
         </p>
       </div>
+
+      {/* Payment tracking — invoiced only */}
+      {status === 'invoiced' && (
+        <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg">
+          <div className="flex items-center justify-between mb-aq-md">
+            <h2 className="text-section font-medium text-aq-ink">Payment</h2>
+            {currentJob.payment_status === 'paid'
+              ? <span className="text-secondary font-medium text-aq-green">Paid</span>
+              : <StatusBadge status="unpaid" />
+            }
+          </div>
+          {currentJob.payment_status === 'paid' ? (
+            <>
+              {currentJob.paid_at && (
+                <p className="text-secondary text-aq-muted mb-aq-md">
+                  Paid on {formatPaidDate(currentJob.paid_at)}
+                </p>
+              )}
+              <Button variant="secondary" fullWidth onClick={() => setUnpayModalOpen(true)}>
+                Mark as unpaid
+              </Button>
+            </>
+          ) : (
+            <Button variant="primary" fullWidth onClick={() => setPayModalOpen(true)}>
+              Mark as paid
+            </Button>
+          )}
+        </div>
+      )}
 
       {quoteSummaryCard}
 
@@ -577,7 +681,24 @@ export default function JobDetailPage() {
     </>
   )
 
-  // ── RENDER ────────────────────────────────────────────────────────────────
+  // ── DECLINED ─────────────────────────────────────────────────────────────────
+  const declinedContent = status === 'declined' && (
+    <>
+      <div className="bg-aq-surface border border-aq-border rounded-aq-xl px-aq-lg py-aq-md">
+        <p className="text-body font-medium text-aq-muted text-center">Quote declined</p>
+      </div>
+
+      {quoteSummaryCard}
+
+      <div className="flex flex-col gap-aq-sm">
+        <Button variant="secondary" fullWidth onClick={handleRequote}>
+          Re-quote
+        </Button>
+      </div>
+    </>
+  )
+
+  // ── RENDER ───────────────────────────────────────────────────────────────────
   return (
     <>
       <div className="min-h-dvh bg-aq-surface">
@@ -595,6 +716,7 @@ export default function JobDetailPage() {
             {acceptedContent}
             {scheduledContent}
             {completedContent}
+            {declinedContent}
           </div>
 
         </div>
@@ -635,6 +757,34 @@ export default function JobDetailPage() {
         cancelLabel="Not now"
         onConfirm={handleInvoiceConfirm}
         onCancel={handleInvoiceLater}
+      />
+
+      <ConfirmModal
+        open={declineModalOpen}
+        question="Mark this quote as declined?"
+        confirmLabel="Yes, mark declined"
+        cancelLabel="Cancel"
+        variant="destructive"
+        onConfirm={handleDeclineConfirm}
+        onCancel={() => setDeclineModalOpen(false)}
+      />
+
+      <ConfirmModal
+        open={payModalOpen}
+        question={`Mark this invoice as paid? Total ${formatCurrency(jobTotal)}.`}
+        confirmLabel="Yes, mark paid"
+        cancelLabel="Not yet"
+        onConfirm={handleMarkPaid}
+        onCancel={() => setPayModalOpen(false)}
+      />
+
+      <ConfirmModal
+        open={unpayModalOpen}
+        question="Mark this invoice as unpaid?"
+        confirmLabel="Yes, mark unpaid"
+        cancelLabel="Cancel"
+        onConfirm={handleMarkUnpaid}
+        onCancel={() => setUnpayModalOpen(false)}
       />
     </>
   )
