@@ -25,8 +25,8 @@ export default function NewJobPage() {
   const [phone, setPhone] = useState('')
   const [source, setSource] = useState(JOB_SOURCE.DIRECT)
 
-  function handleStart() {
-    const job = createJob({
+  async function handleStart() {
+    const job = await createJob({
       customer_name: name.trim(),
       customer_address: address.trim(),
       customer_phone: phone.trim(),

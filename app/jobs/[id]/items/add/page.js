@@ -4,8 +4,7 @@ import { useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { JOINERY_TYPE_LABELS, FAULT_OPTIONS } from '@/lib/constants'
-import { getSuggestedParts } from '@/lib/diagnosis'
-import { MOCK_PARTS } from '@/lib/mock-data'
+import { getPartsByFitsAndFixes } from '@/lib/db'
 import { useJob } from '@/lib/job-context'
 import { formatCurrency } from '@/lib/pricing'
 import Button from '@/components/Button'
@@ -36,6 +35,7 @@ export default function AddItemPage() {
   const [faultLabel, setFaultLabel] = useState('')
   // partState: { [partId]: { part, qty, selected } }
   const [partState, setPartState] = useState({})
+  const [loadingParts, setLoadingParts] = useState(false)
 
   function handleBack() {
     if (step === 'fault') {
@@ -56,18 +56,20 @@ export default function AddItemPage() {
     setStep('fault')
   }
 
-  function selectFault(option) {
+  async function selectFault(option) {
     setFaultValue(option.value)
     setFaultLabel(option.label)
+    setPartState({})
+    setLoadingParts(true)
+    setStep('parts')
 
-    // Pre-load suggested parts into partState with default quantities
-    const suggestions = getSuggestedParts(MOCK_PARTS, joineryType, option.value)
+    const suggestions = await getPartsByFitsAndFixes(joineryType, option.value)
     const initial = {}
     suggestions.forEach((p) => {
       initial[p.id] = { part: p, qty: p.default_qty, selected: false }
     })
     setPartState(initial)
-    setStep('parts')
+    setLoadingParts(false)
   }
 
   function togglePart(partId) {
@@ -197,7 +199,9 @@ export default function AddItemPage() {
         {/* ── Step 3: Suggested parts ── */}
         {step === 'parts' && (
           <>
-            {suggestions.length === 0 ? (
+            {loadingParts ? (
+              <p className="text-body text-aq-muted text-center py-aq-2xl">Loading...</p>
+            ) : suggestions.length === 0 ? (
               <div className="bg-white border border-aq-border rounded-aq-xl p-aq-xl text-center">
                 <p className="text-body text-aq-muted mb-aq-lg">
                   No parts found for this fault. Browse the catalogue to add parts manually.

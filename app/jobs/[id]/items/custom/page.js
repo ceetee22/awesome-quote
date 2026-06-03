@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { v4 as uuidv4 } from 'uuid'
 import { useJob } from '@/lib/job-context'
-import { MOCK_PARTS } from '@/lib/mock-data'
+import { getParts } from '@/lib/db'
 import {
   JOINERY_TYPE_LABELS,
   FITS_VALUES,
@@ -43,15 +43,20 @@ const textareaClass =
 // Catalogue search overlay — full screen, white bg
 function CatalogueSearchOverlay({ onAdd, onClose }) {
   const [query, setQuery] = useState('')
+  const [allParts, setAllParts] = useState([])
+
+  useEffect(() => {
+    getParts().then(setAllParts)
+  }, [])
 
   const filtered = query.trim()
-    ? MOCK_PARTS.filter(
+    ? allParts.filter(
         (p) =>
           p.active &&
           (p.name.toLowerCase().includes(query.toLowerCase()) ||
             p.sku.toLowerCase().includes(query.toLowerCase()))
       )
-    : MOCK_PARTS.filter((p) => p.active)
+    : allParts.filter((p) => p.active)
 
   return (
     <div className="fixed inset-0 z-50 bg-white flex flex-col">

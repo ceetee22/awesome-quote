@@ -1,8 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { v4 as uuidv4 } from 'uuid'
-import { MOCK_PARTS } from '@/lib/mock-data'
 import {
   PART_CATEGORY,
   PART_CATEGORY_LABELS,
@@ -13,6 +12,7 @@ import {
   DEFAULT_SETTINGS,
 } from '@/lib/constants'
 import { calcSellPrice, formatCurrency } from '@/lib/pricing'
+import { getParts, createPart } from '@/lib/db'
 import Button from '@/components/Button'
 import BackButton from '@/components/BackButton'
 
@@ -355,10 +355,18 @@ function AddPartForm({ onSave, onClose }) {
 }
 
 export default function CataloguePage() {
-  const [parts, setParts] = useState([...MOCK_PARTS])
+  const [parts, setParts] = useState([])
+  const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [addFormOpen, setAddFormOpen] = useState(false)
+
+  useEffect(() => {
+    getParts().then((data) => {
+      setParts(data)
+      setLoading(false)
+    })
+  }, [])
 
   const filtered = parts.filter((p) => {
     if (!p.active) return false
@@ -374,6 +382,7 @@ export default function CataloguePage() {
   function handleSavePart(newPart) {
     setParts((prev) => [...prev, newPart])
     setAddFormOpen(false)
+    createPart(newPart)
   }
 
   return (
@@ -437,7 +446,9 @@ export default function CataloguePage() {
           </div>
 
           {/* Parts list */}
-          {filtered.length === 0 ? (
+          {loading ? (
+            <p className="text-body text-aq-muted text-center py-aq-2xl">Loading...</p>
+          ) : filtered.length === 0 ? (
             <div className="bg-white border border-aq-border rounded-aq-xl p-aq-xl text-center">
               <p className="text-body text-aq-muted">No parts match your search.</p>
             </div>
