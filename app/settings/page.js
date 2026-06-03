@@ -1,8 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { v4 as uuidv4 } from 'uuid'
 import { useSettings } from '@/lib/settings-context'
+import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import Button from '@/components/Button'
 import BackButton from '@/components/BackButton'
 import ConfirmModal from '@/components/ConfirmModal'
@@ -128,7 +130,16 @@ function ZoneCard({ zone, isEditing, onEdit, onSaveEdit, onCancelEdit, onDelete,
 }
 
 export default function SettingsPage() {
+  const router = useRouter()
   const { settings, updateSettings } = useSettings()
+  const [signOutModalOpen, setSignOutModalOpen] = useState(false)
+
+  async function handleSignOut() {
+    const supabase = createSupabaseBrowserClient()
+    if (supabase) await supabase.auth.signOut()
+    router.push('/login')
+    router.refresh()
+  }
 
   const [form, setForm] = useState({
     business_name: settings.business_name,
@@ -397,6 +408,13 @@ export default function SettingsPage() {
             )}
           </div>
 
+          {/* Sign out */}
+          <div className="mt-aq-xl">
+            <Button variant="destructive" fullWidth onClick={() => setSignOutModalOpen(true)}>
+              Sign out
+            </Button>
+          </div>
+
         </div>
       </div>
 
@@ -408,6 +426,15 @@ export default function SettingsPage() {
         variant="destructive"
         onConfirm={confirmDeleteZone}
         onCancel={() => setDeleteZoneId(null)}
+      />
+
+      <ConfirmModal
+        open={signOutModalOpen}
+        question="Sign out of Awesome Quote?"
+        confirmLabel="Yes, sign out"
+        cancelLabel="Cancel"
+        onConfirm={handleSignOut}
+        onCancel={() => setSignOutModalOpen(false)}
       />
     </>
   )
