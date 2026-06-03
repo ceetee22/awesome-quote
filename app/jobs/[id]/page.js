@@ -138,6 +138,7 @@ export default function JobDetailPage() {
   const [scheduleOpen, setScheduleOpen]         = useState(false)
   const [xeroModalOpen, setXeroModalOpen]       = useState(false)
   const [resendModalOpen, setResendModalOpen]   = useState(false)
+  const [completeModalOpen, setCompleteModalOpen] = useState(false)
 
   if (!currentJob) {
     return (
@@ -195,6 +196,11 @@ export default function JobDetailPage() {
   function handleXeroConfirm() {
     setCurrentJob((prev) => ({ ...prev, status: 'invoiced' }))
     setXeroModalOpen(false)
+  }
+
+  function handleCompleteConfirm() {
+    setCurrentJob((prev) => ({ ...prev, status: 'completed' }))
+    setCompleteModalOpen(false)
   }
 
   async function handleDownloadPdf() {
@@ -469,6 +475,9 @@ export default function JobDetailPage() {
             onClick={() => setScheduleOpen((o) => !o)}>
             {scheduleOpen ? 'Cancel' : 'Schedule return visit'}
           </Button>
+          <Button variant="secondary" fullWidth onClick={() => setCompleteModalOpen(true)}>
+            Job completed
+          </Button>
         </div>
 
         {scheduleOpen && (
@@ -520,6 +529,10 @@ export default function JobDetailPage() {
 
         {scheduleOpen && schedulePickers}
       </div>
+
+      <Button variant="primary" fullWidth onClick={() => setCompleteModalOpen(true)}>
+        Job completed
+      </Button>
 
       {quoteSummaryCard}
       {trackerCard}
@@ -585,6 +598,15 @@ export default function JobDetailPage() {
         cancelLabel="Not yet"
         onConfirm={async () => { setResendModalOpen(false); await handleDownloadPdf() }}
         onCancel={() => setResendModalOpen(false)}
+      />
+
+      <ConfirmModal
+        open={completeModalOpen}
+        question="Mark this job as completed?"
+        confirmLabel="Yes, complete"
+        cancelLabel="Not yet"
+        onConfirm={handleCompleteConfirm}
+        onCancel={() => setCompleteModalOpen(false)}
       />
     </>
   )
