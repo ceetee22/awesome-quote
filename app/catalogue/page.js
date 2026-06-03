@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { v4 as uuidv4 } from 'uuid'
 import {
   PART_CATEGORY,
@@ -13,6 +14,7 @@ import {
 } from '@/lib/constants'
 import { calcSellPrice, formatCurrency } from '@/lib/pricing'
 import { getParts, createPart } from '@/lib/db'
+import { useJob } from '@/lib/job-context'
 import Button from '@/components/Button'
 import BackButton from '@/components/BackButton'
 
@@ -40,7 +42,6 @@ const UNITS = ['each', 'pair', 'set', 'metre']
 const inputClass =
   'w-full bg-white border border-aq-border rounded-aq-md min-h-tap px-4 text-body text-aq-ink placeholder:text-aq-subtle focus:outline-none focus:border-aq-green transition-colors duration-150'
 
-// Small read-only tag pill
 function FitPill({ label }) {
   return (
     <span className="inline-flex items-center px-aq-sm py-aq-xs text-caption font-medium text-aq-green bg-aq-green-tint border border-aq-green-tint-border rounded-aq-sm">
@@ -57,7 +58,6 @@ function FixPill({ label }) {
   )
 }
 
-// Toggle pill for multi-select in the add form
 function SelectPill({ label, selected, onToggle, colour = 'green' }) {
   const styles =
     colour === 'gold'
@@ -79,8 +79,7 @@ function SelectPill({ label, selected, onToggle, colour = 'green' }) {
   )
 }
 
-// Part card shown in the list
-function PartCard({ part }) {
+function PartCard({ part, onAddToJob }) {
   return (
     <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg">
       {/* Name + category badge */}
@@ -123,11 +122,19 @@ function PartCard({ part }) {
           ))}
         </div>
       )}
+
+      {/* Add to job button — only shown when accessed from a job context */}
+      {onAddToJob && (
+        <div className="mt-aq-md pt-aq-md border-t border-aq-border">
+          <Button variant="primary" fullWidth onClick={onAddToJob}>
+            Add to job
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
 
-// Full-screen add new part form
 function AddPartForm({ onSave, onClose }) {
   const [name, setName] = useState('')
   const [sku, setSku] = useState('')
@@ -191,7 +198,6 @@ function AddPartForm({ onSave, onClose }) {
 
         <div className="flex flex-col gap-aq-lg">
 
-          {/* Name */}
           <div>
             <label className="block text-secondary text-aq-muted mb-aq-sm" htmlFor="new-name">
               Part name *
@@ -206,7 +212,6 @@ function AddPartForm({ onSave, onClose }) {
             />
           </div>
 
-          {/* SKU */}
           <div>
             <label className="block text-secondary text-aq-muted mb-aq-sm" htmlFor="new-sku">
               SKU
@@ -221,7 +226,6 @@ function AddPartForm({ onSave, onClose }) {
             />
           </div>
 
-          {/* Supplier */}
           <div>
             <label className="block text-secondary text-aq-muted mb-aq-sm" htmlFor="new-supplier">
               Supplier
@@ -235,7 +239,6 @@ function AddPartForm({ onSave, onClose }) {
             />
           </div>
 
-          {/* Unit */}
           <div>
             <p className="text-secondary text-aq-muted mb-aq-sm">Unit</p>
             <div className="flex flex-wrap gap-aq-sm">
@@ -256,7 +259,6 @@ function AddPartForm({ onSave, onClose }) {
             </div>
           </div>
 
-          {/* Pricing */}
           <div>
             <label className="block text-secondary text-aq-muted mb-aq-sm" htmlFor="new-cost">
               Cost price (ex GST) *
@@ -288,7 +290,6 @@ function AddPartForm({ onSave, onClose }) {
             )}
           </div>
 
-          {/* Category */}
           <div>
             <p className="text-secondary text-aq-muted mb-aq-sm">Category *</p>
             <div className="flex flex-wrap gap-aq-sm">
@@ -309,7 +310,6 @@ function AddPartForm({ onSave, onClose }) {
             </div>
           </div>
 
-          {/* Fits */}
           <div>
             <p className="text-secondary text-aq-muted mb-aq-sm">Fits</p>
             <div className="flex flex-wrap gap-aq-sm">
@@ -325,7 +325,6 @@ function AddPartForm({ onSave, onClose }) {
             </div>
           </div>
 
-          {/* Fixes */}
           <div>
             <p className="text-secondary text-aq-muted mb-aq-sm">Fixes</p>
             <div className="flex flex-wrap gap-aq-sm">
@@ -354,7 +353,14 @@ function AddPartForm({ onSave, onClose }) {
   )
 }
 
-export default function CataloguePage() {
+function CatalogueContent() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const { addItem } = useJob()
+
+  const jobId = searchParams.get('jobId')
+  const fromJob = searchParams.get('from') === 'job' && !!jobId
+
   const [parts, setParts] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -385,6 +391,27 @@ export default function CataloguePage() {
     createPart(newPart)
   }
 
+  function handleAddToJob(part) {
+    addItem({
+      type: 'custom',
+      description: part.name,
+      parts: [{
+        part_id: part.id,
+        name: part.name,
+        sku: part.sku,
+        sell_price: part.sell_price,
+        cost_price: part.cost_price,
+        qty: part.default_qty || 1,
+        unit: part.unit,
+        supplier: part.supplier,
+        supplier_code: part.supplier_code,
+      }],
+      labour_hours: 0,
+      hourly_rate: 85,
+    })
+    router.push(`/jobs/${jobId}/items`)
+  }
+
   return (
     <>
       {addFormOpen && (
@@ -399,7 +426,11 @@ export default function CataloguePage() {
 
           {/* Header */}
           <div className="flex items-center gap-aq-sm py-aq-xl">
-            <BackButton href="/" label="Home" />
+            {fromJob ? (
+              <BackButton href={`/jobs/${jobId}/items/add`} label="Add item" />
+            ) : (
+              <BackButton href="/" label="Home" />
+            )}
             <h1 className="text-page-title font-medium text-aq-ink ml-aq-sm">Parts catalogue</h1>
           </div>
 
@@ -455,7 +486,11 @@ export default function CataloguePage() {
           ) : (
             <div className="flex flex-col gap-[10px]">
               {filtered.map((part) => (
-                <PartCard key={part.id} part={part} />
+                <PartCard
+                  key={part.id}
+                  part={part}
+                  onAddToJob={fromJob ? () => handleAddToJob(part) : null}
+                />
               ))}
             </div>
           )}
@@ -472,5 +507,17 @@ export default function CataloguePage() {
         </div>
       </div>
     </>
+  )
+}
+
+export default function CataloguePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-dvh bg-aq-surface flex items-center justify-center">
+        <p className="text-body text-aq-muted">Loading...</p>
+      </div>
+    }>
+      <CatalogueContent />
+    </Suspense>
   )
 }

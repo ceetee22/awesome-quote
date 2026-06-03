@@ -207,7 +207,7 @@ export default function AddItemPage() {
                   No parts found for this fault. Browse the catalogue to add parts manually.
                 </p>
                 <Link
-                  href="/catalogue"
+                  href={`/catalogue?from=job&jobId=${params.id}`}
                   className="text-aq-green text-secondary font-medium"
                 >
                   Browse full catalogue
@@ -272,7 +272,7 @@ export default function AddItemPage() {
 
                 {/* Browse full catalogue escape hatch */}
                 <Link
-                  href="/catalogue"
+                  href={`/catalogue?from=job&jobId=${params.id}`}
                   className="block text-center text-aq-green text-secondary font-medium py-aq-md"
                 >
                   Browse full catalogue
