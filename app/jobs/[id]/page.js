@@ -423,7 +423,7 @@ export default function JobDetailPage() {
                             <p className="text-secondary font-medium text-aq-ink leading-snug truncate">
                               {JOINERY_TYPE_LABELS[item.joinery_type] || item.joinery_type}
                               {item.fault
-                                ? ` — ${getFaultLabel(item.joinery_type, item.fault)}`
+                                ? ` - ${getFaultLabel(item.joinery_type, item.fault)}`
                                 : ''}
                             </p>
                           )}

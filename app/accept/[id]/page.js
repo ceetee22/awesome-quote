@@ -233,7 +233,7 @@ export default function AcceptPage() {
             let label
             if (item.type === 'diagnosed') {
               label = [item.joinery_type_label || item.joinery_type, item.fault_label || item.fault]
-                .filter(Boolean).join(' — ')
+                .filter(Boolean).join(' - ')
             } else {
               label = item.description || 'Custom item'
             }
