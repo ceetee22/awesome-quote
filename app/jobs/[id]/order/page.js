@@ -41,6 +41,9 @@ export default function OrderPage() {
 
   const [phase, setPhase] = useState('review') // review | generating | done
   const [supplier, setSupplier] = useState(null)
+  const [collectionMethod, setCollectionMethod] = useState('pickup')
+  const [deliverySource, setDeliverySource] = useState('business')
+  const [customAddress, setCustomAddress] = useState('')
 
   useEffect(() => {
     getDefaultSupplier().then(setSupplier)
@@ -87,6 +90,13 @@ export default function OrderPage() {
   const supplierName = supplier?.name || settings?.supplier_name || 'Joinery Hardware NZ'
   const supplierEmail = supplier?.email || settings?.supplier_email || ''
 
+  const resolvedAddress =
+    collectionMethod === 'delivery'
+      ? deliverySource === 'business' ? (settings?.home_base_address || '')
+        : deliverySource === 'job' ? (currentJob?.customer_address || '')
+        : customAddress
+      : ''
+
   async function handleConfirm() {
     setConfirmOpen(false)
     setPhase('generating')
@@ -95,10 +105,17 @@ export default function OrderPage() {
         job: currentJob,
         settings: { ...settings, supplier_name: supplierName, supplier_email: supplierEmail },
         orderLines: enabledLines,
+        collectionMethod,
+        deliveryAddress: resolvedAddress,
       })
       const poNumber = `PO-${(currentJob.id || '').substring(0, 8).toUpperCase()}`
       downloadBlob(blob, `${poNumber}.pdf`)
-      setCurrentJob((prev) => ({ ...prev, status: 'ordered' }))
+      setCurrentJob((prev) => ({
+        ...prev,
+        status: 'ordered',
+        po_collection_method: collectionMethod,
+        po_delivery_address: resolvedAddress,
+      }))
       setPhase('done')
     } catch {
       setPhase('review')
@@ -228,6 +245,83 @@ export default function OrderPage() {
           </div>
         </div>
 
+        {/* Collection method */}
+        <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg mb-aq-lg">
+          <p className="text-body font-medium text-aq-ink mb-aq-md">Collection method</p>
+          <div className="flex gap-aq-sm mb-aq-md">
+            {['pickup', 'delivery'].map((method) => (
+              <button
+                key={method}
+                type="button"
+                onClick={() => setCollectionMethod(method)}
+                className={`min-h-tap flex-1 text-secondary font-medium rounded-aq-lg border transition-colors duration-150 ${
+                  collectionMethod === method
+                    ? 'border-aq-green bg-aq-green-tint text-aq-green'
+                    : 'border-aq-border text-aq-muted bg-white'
+                }`}
+              >
+                {method === 'pickup' ? 'Pickup' : 'Delivery'}
+              </button>
+            ))}
+          </div>
+
+          {collectionMethod === 'delivery' && (
+            <div className="flex flex-col gap-aq-sm">
+              {settings?.home_base_address && (
+                <button
+                  type="button"
+                  onClick={() => setDeliverySource('business')}
+                  className={`min-h-tap px-aq-lg text-secondary font-medium rounded-aq-lg border text-left transition-colors duration-150 ${
+                    deliverySource === 'business'
+                      ? 'border-aq-green bg-aq-green-tint text-aq-green'
+                      : 'border-aq-border text-aq-muted bg-white'
+                  }`}
+                >
+                  Business address
+                </button>
+              )}
+              {currentJob?.customer_address && (
+                <button
+                  type="button"
+                  onClick={() => setDeliverySource('job')}
+                  className={`min-h-tap px-aq-lg text-secondary font-medium rounded-aq-lg border text-left transition-colors duration-150 ${
+                    deliverySource === 'job'
+                      ? 'border-aq-green bg-aq-green-tint text-aq-green'
+                      : 'border-aq-border text-aq-muted bg-white'
+                  }`}
+                >
+                  Job address
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setDeliverySource('custom')}
+                className={`min-h-tap px-aq-lg text-secondary font-medium rounded-aq-lg border text-left transition-colors duration-150 ${
+                  deliverySource === 'custom'
+                    ? 'border-aq-green bg-aq-green-tint text-aq-green'
+                    : 'border-aq-border text-aq-muted bg-white'
+                }`}
+              >
+                Other address
+              </button>
+
+              {deliverySource === 'custom' && (
+                <input
+                  type="text"
+                  value={customAddress}
+                  onChange={(e) => setCustomAddress(e.target.value)}
+                  placeholder="Enter delivery address"
+                  className="w-full bg-white border border-aq-border rounded-aq-md min-h-tap px-4 text-body text-aq-ink placeholder:text-aq-subtle focus:outline-none focus:border-aq-green transition-colors"
+                />
+              )}
+
+              {resolvedAddress && (
+                <p className="text-secondary text-aq-ink px-aq-xs">{resolvedAddress}</p>
+              )}
+            </div>
+          )}
+        </div>
+
       </div>
 
       {/* Fixed bottom button */}
@@ -247,7 +341,11 @@ export default function OrderPage() {
       <ConfirmModal
         open={confirmOpen}
         question={`Send purchase order to ${supplierName} for ${formatCurrency(orderTotal)}?`}
-        detail={supplierEmail ? `This will download a PO PDF to email to ${supplierEmail}.` : 'This will download a branded PO PDF to email to your supplier.'}
+        detail={
+          collectionMethod === 'pickup'
+            ? 'This will download a PO PDF. Marked for pickup.'
+            : `This will download a PO PDF. Deliver to ${resolvedAddress || 'the address selected'}.`
+        }
         confirmLabel="Yes, send"
         cancelLabel="Not yet"
         onConfirm={handleConfirm}

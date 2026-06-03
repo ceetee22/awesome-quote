@@ -190,14 +190,43 @@ export default function AddItemPage() {
   const faultOptions = joineryType ? FAULT_OPTIONS[joineryType] : []
   const hasSelected = Object.values(partState).some((ps) => ps.selected)
 
-  // Top 3 suggestions (photo first, then price asc)
+  // Relevance-based ranking for the top 3 suggestions
+  const FAULT_PRIMARY_KW = {
+    stiff:           ['roller', 'carriage', 'wheel', 'runner'],
+    wont_lock:       ['lock', 'latch', 'catch', 'striker'],
+    broken_hardware: ['stay', 'hinge', 'handle', 'roller'],
+    drafty:          ['seal', 'weather', 'brush', 'strip'],
+    misaligned:      ['roller', 'carriage', 'track'],
+    other:           [],
+  }
+  const JOINERY_SECONDARY_KW = {
+    sliding_door:  ['sliding'],
+    window_ali:    ['window'],
+    window_timber: ['window', 'timber'],
+    bifold_door:   ['bifold'],
+    hinged_door:   ['door'],
+  }
+  const ACCESSORY_KW = ['packer', 'side wing', 'guide', 'cover', 'cap', 'spacer', 'screw', 'end cap']
+
+  function partRelevanceScore(part) {
+    const name = part.name.toLowerCase()
+    let score = 0
+    const faultKws   = FAULT_PRIMARY_KW[faultValue]   || []
+    const joineryKws = JOINERY_SECONDARY_KW[joineryType] || []
+    if (faultKws.some((kw) => name.includes(kw)))     score += 20
+    if (joineryKws.some((kw) => name.includes(kw)))   score += 5
+    if (ACCESSORY_KW.some((kw) => name.includes(kw))) score -= 15
+    if (part.photo_url) score += 2
+    return score
+  }
+
   const topSuggestions = Object.values(partState)
     .map((ps) => ps.part)
     .sort((a, b) => {
-      const aPhoto = a.photo_url ? 0 : 1
-      const bPhoto = b.photo_url ? 0 : 1
-      if (aPhoto !== bPhoto) return aPhoto - bPhoto
-      return (a.sell_price || 0) - (b.sell_price || 0)
+      const scoreDiff = partRelevanceScore(b) - partRelevanceScore(a)
+      if (scoreDiff !== 0) return scoreDiff
+      // Same score: prefer higher price (not the absolute cheapest, which tends to be accessories)
+      return (b.sell_price || 0) - (a.sell_price || 0)
     })
     .slice(0, 3)
 
