@@ -3,7 +3,10 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-const HIDDEN_ON = ['/login', '/forgot-password', '/reset-password', '/accept']
+// Auth/public pages
+const HIDDEN_STARTS = ['/login', '/forgot-password', '/reset-password', '/accept']
+// Task-focused pages where the user should complete the flow, not navigate away
+const HIDDEN_INCLUDES = ['/items/add', '/items/custom', '/quote', '/order']
 
 const TABS = [
   {
@@ -66,7 +69,10 @@ const TABS = [
 export default function BottomNav() {
   const pathname = usePathname()
 
-  if (HIDDEN_ON.some((p) => pathname.startsWith(p))) return null
+  if (
+    HIDDEN_STARTS.some((p) => pathname.startsWith(p)) ||
+    HIDDEN_INCLUDES.some((p) => pathname.includes(p))
+  ) return null
 
   return (
     <nav

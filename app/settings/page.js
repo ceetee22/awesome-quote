@@ -538,7 +538,7 @@ export default function SettingsPage() {
           </div>
 
           {/* Sign out */}
-          <div className="mt-aq-xl">
+          <div className="mt-aq-xl mb-8">
             <Button variant="destructive" fullWidth onClick={() => setSignOutModalOpen(true)}>
               Sign out
             </Button>
