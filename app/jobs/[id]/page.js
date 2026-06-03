@@ -139,6 +139,7 @@ export default function JobDetailPage() {
   const [xeroModalOpen, setXeroModalOpen]       = useState(false)
   const [resendModalOpen, setResendModalOpen]   = useState(false)
   const [completeModalOpen, setCompleteModalOpen] = useState(false)
+  const [invoiceModalOpen, setInvoiceModalOpen] = useState(false)
 
   if (!currentJob) {
     return (
@@ -201,6 +202,16 @@ export default function JobDetailPage() {
   function handleCompleteConfirm() {
     setCurrentJob((prev) => ({ ...prev, status: 'completed' }))
     setCompleteModalOpen(false)
+    setInvoiceModalOpen(true)
+  }
+
+  function handleInvoiceConfirm() {
+    setCurrentJob((prev) => ({ ...prev, status: 'invoiced' }))
+    setInvoiceModalOpen(false)
+  }
+
+  function handleInvoiceLater() {
+    setInvoiceModalOpen(false)
   }
 
   async function handleDownloadPdf() {
@@ -551,9 +562,16 @@ export default function JobDetailPage() {
 
       {quoteSummaryCard}
 
-      <Button variant="secondary" fullWidth onClick={handleDownloadPdf}>
-        Download PDF
-      </Button>
+      <div className="flex flex-col gap-aq-sm">
+        {status === 'completed' && (
+          <Button variant="primary" fullWidth onClick={() => setXeroModalOpen(true)}>
+            Send to Xero
+          </Button>
+        )}
+        <Button variant="secondary" fullWidth onClick={handleDownloadPdf}>
+          Download PDF
+        </Button>
+      </div>
 
       {trackerCard}
     </>
@@ -607,6 +625,16 @@ export default function JobDetailPage() {
         cancelLabel="Not yet"
         onConfirm={handleCompleteConfirm}
         onCancel={() => setCompleteModalOpen(false)}
+      />
+
+      <ConfirmModal
+        open={invoiceModalOpen}
+        question="Send this job to Xero?"
+        detail={`This creates a draft invoice for ${formatCurrency(jobTotal)} in Xero.`}
+        confirmLabel="Yes, send"
+        cancelLabel="Not now"
+        onConfirm={handleInvoiceConfirm}
+        onCancel={handleInvoiceLater}
       />
     </>
   )
