@@ -116,7 +116,18 @@ export default function AddItemPage() {
   }
 
   const faultOptions = joineryType ? FAULT_OPTIONS[joineryType] : []
-  const suggestions = step === 'parts' ? Object.values(partState).map((ps) => ps.part) : []
+
+  const allSuggestions = step === 'parts'
+    ? Object.values(partState)
+        .map((ps) => ps.part)
+        .sort((a, b) => {
+          const aPhoto = a.photo_url ? 0 : 1
+          const bPhoto = b.photo_url ? 0 : 1
+          if (aPhoto !== bPhoto) return aPhoto - bPhoto
+          return (a.sell_price || 0) - (b.sell_price || 0)
+        })
+    : []
+  const suggestions = allSuggestions.slice(0, 10)
   const hasSelected = Object.values(partState).some((ps) => ps.selected)
 
   // Page title, subtitle and back label based on step
@@ -215,6 +226,21 @@ export default function AddItemPage() {
               </div>
             ) : (
               <div className="flex flex-col gap-[10px]">
+                {/* Browse full catalogue — escape hatch at the top */}
+                <div className="flex items-center justify-between mb-aq-xs">
+                  <p className="text-caption text-aq-muted">
+                    {allSuggestions.length > 10
+                      ? `Showing 10 of ${allSuggestions.length} matching parts`
+                      : `${allSuggestions.length} matching ${allSuggestions.length === 1 ? 'part' : 'parts'}`}
+                  </p>
+                  <Link
+                    href={`/catalogue?from=job&jobId=${params.id}`}
+                    className="text-aq-green text-secondary font-medium"
+                  >
+                    Browse full catalogue
+                  </Link>
+                </div>
+
                 {suggestions.map((part) => {
                   const ps = partState[part.id]
                   const isSelected = ps?.selected ?? false
@@ -269,14 +295,6 @@ export default function AddItemPage() {
                     </div>
                   )
                 })}
-
-                {/* Browse full catalogue escape hatch */}
-                <Link
-                  href={`/catalogue?from=job&jobId=${params.id}`}
-                  className="block text-center text-aq-green text-secondary font-medium py-aq-md"
-                >
-                  Browse full catalogue
-                </Link>
               </div>
             )}
 
