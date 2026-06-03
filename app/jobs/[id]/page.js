@@ -581,7 +581,7 @@ export default function JobDetailPage() {
   return (
     <>
       <div className="min-h-dvh bg-aq-surface">
-        <div className="max-w-[480px] mx-auto px-aq-lg pb-aq-2xl">
+        <div className="max-w-[480px] mx-auto px-aq-lg pb-[88px]">
 
           <div className="flex items-center gap-aq-sm py-aq-xl">
             <BackButton href={backHref} label={backLabel} />

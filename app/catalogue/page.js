@@ -181,7 +181,7 @@ function AddPartForm({ onSave, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 bg-white overflow-y-auto">
-      <div className="max-w-[480px] mx-auto px-aq-lg pb-aq-2xl">
+      <div className="max-w-[480px] mx-auto px-aq-lg pb-[88px]">
 
         {/* Modal header */}
         <div className="flex items-center gap-aq-sm py-aq-xl sticky top-0 bg-white border-b border-aq-border -mx-aq-lg px-aq-lg mb-aq-lg">
