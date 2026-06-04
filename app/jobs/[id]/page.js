@@ -633,9 +633,11 @@ export default function JobDetailPage() {
             onClick={() => setScheduleOpen((o) => !o)}>
             {scheduleOpen ? 'Cancel' : 'Schedule return visit'}
           </Button>
-          <Button variant="secondary" fullWidth onClick={() => setCompleteModalOpen(true)}>
-            Job completed
-          </Button>
+          {status !== 'completed' && status !== 'invoiced' && (
+            <Button variant="secondary" fullWidth onClick={() => setCompleteModalOpen(true)}>
+              Job completed
+            </Button>
+          )}
           <Button variant="secondary" fullWidth
             onClick={() => router.push(`/jobs/${params.id}/quote?revise=true`)}>
             Revise quote
@@ -714,9 +716,11 @@ export default function JobDetailPage() {
       </div>
 
       <div className="flex flex-col gap-aq-sm">
-        <Button variant="primary" fullWidth onClick={() => setCompleteModalOpen(true)}>
-          Job completed
-        </Button>
+        {status !== 'completed' && status !== 'invoiced' && (
+          <Button variant="primary" fullWidth onClick={() => setCompleteModalOpen(true)}>
+            Job completed
+          </Button>
+        )}
         <Button variant="secondary" fullWidth
           onClick={() => router.push(`/jobs/${params.id}/quote?revise=true`)}>
           Revise quote
@@ -844,7 +848,7 @@ export default function JobDetailPage() {
 
       <ConfirmModal
         open={resendModalOpen}
-        question={`Resend the quote to ${currentJob.customer_name}?`}
+        question={`Download the quote PDF to resend to ${currentJob.customer_name}.`}
         confirmLabel="Yes, resend"
         cancelLabel="Not yet"
         onConfirm={async () => { setResendModalOpen(false); await handleDownloadPdf() }}

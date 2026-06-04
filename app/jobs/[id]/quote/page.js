@@ -472,7 +472,7 @@ export default function QuotePage() {
                 onClick={handleReviseConfirm}
                 className="w-full min-h-tap text-btn font-medium rounded-aq-lg bg-aq-green text-white hover:bg-aq-green-hover active:bg-aq-green-pressed transition-colors duration-150"
               >
-                Yes, send
+                Yes, send revised quote
               </button>
               <button
                 type="button"

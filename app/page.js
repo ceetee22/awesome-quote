@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { useJob } from '@/lib/job-context'
 import { useSettings } from '@/lib/settings-context'
@@ -89,6 +90,13 @@ function JobRow({ job, hourlyRate, gstRate, getDisplayStatus }) {
 export default function HomePage() {
   const { jobs } = useJob()
   const { settings } = useSettings()
+  const [bizBannerDismissed, setBizBannerDismissed] = useState(false)
+
+  const missingBizDetails =
+    !settings?.business_name?.trim() ||
+    !settings?.business_phone?.trim() ||
+    !settings?.business_email?.trim() ||
+    !settings?.bank_account_number?.trim()
 
   function getJobPriority(job) {
     if (job.status === 'accepted' || job.status === 'scheduled') return 0
@@ -177,6 +185,26 @@ export default function HomePage() {
               />
             </div>
           </section>
+
+          {/* Business details nudge */}
+          {missingBizDetails && !bizBannerDismissed && (
+            <div className="bg-aq-info-tint border border-aq-info-tint-border rounded-aq-xl px-aq-lg py-aq-sm flex items-center justify-between gap-aq-md mb-aq-lg">
+              <p className="text-secondary text-aq-info flex-1">
+                Finish your business details so they show on your quotes and invoices.{' '}
+                <Link href="/settings" className="font-medium underline min-h-tap inline-flex items-center">
+                  Go to settings
+                </Link>
+              </p>
+              <button
+                type="button"
+                onClick={() => setBizBannerDismissed(true)}
+                aria-label="Dismiss"
+                className="min-h-tap min-w-[48px] flex items-center justify-center text-aq-info shrink-0 text-lg leading-none"
+              >
+                ×
+              </button>
+            </div>
+          )}
 
           {/* Recent jobs */}
           <section aria-label="Recent jobs">
