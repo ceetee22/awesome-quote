@@ -318,6 +318,12 @@ export default function SettingsPage() {
   const [deleteZoneId, setDeleteZoneId] = useState(null)
   const [savedVisible, setSavedVisible] = useState(false)
 
+  const [rubberWastePct, setRubberWastePct] = useState(String(settings.rubber_waste_pct ?? 10))
+  const [bands, setBands] = useState(settings.window_size_bands || [])
+  const [editingBandIdx, setEditingBandIdx] = useState(null)
+  const [editBandState, setEditBandState] = useState(null)
+  const [deleteBandIdx, setDeleteBandIdx] = useState(null)
+
   function setField(key, value) {
     setForm((prev) => ({ ...prev, [key]: value }))
   }
@@ -381,6 +387,8 @@ export default function SettingsPage() {
       bank_account_number: form.bank_account_number,
       payment_terms: form.payment_terms,
       terms_and_conditions: form.terms_and_conditions,
+      rubber_waste_pct: parseFloat(rubberWastePct) || 10,
+      window_size_bands: bands,
     })
     setSavedVisible(true)
     setTimeout(() => setSavedVisible(false), 2000)
@@ -518,6 +526,122 @@ export default function SettingsPage() {
               </Button>
             </div>
 
+            {/* Window size bands */}
+            <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg">
+              <h2 className="text-section font-medium text-aq-ink mb-aq-xs">Window size bands</h2>
+              <p className="text-secondary text-aq-muted mb-aq-lg">
+                Bands are your typical window sizes. Set the rubber metres and time each one usually takes so estimates are fast and accurate for your work.
+              </p>
+              <div className="mb-aq-md">
+                <label htmlFor="rubber-waste" className={labelClass}>Rubber waste allowance</label>
+                <SuffixInput
+                  id="rubber-waste"
+                  suffix="%"
+                  value={rubberWastePct}
+                  onChange={(e) => setRubberWastePct(e.target.value)}
+                  placeholder="10"
+                />
+                <p className="text-caption text-aq-muted mt-aq-xs">Added to raw metres when calculating how much to order.</p>
+              </div>
+              <div className="flex flex-col gap-[10px] mb-aq-md">
+                {bands.map((band, idx) => (
+                  editingBandIdx === idx ? (
+                    <div key={idx} className="bg-aq-green-tint border border-aq-green-tint-border rounded-aq-xl p-aq-lg flex flex-col gap-aq-sm">
+                      <div>
+                        <p className={labelClass}>Band name</p>
+                        <input
+                          type="text"
+                          value={editBandState.name}
+                          onChange={(e) => setEditBandState((prev) => ({ ...prev, name: e.target.value }))}
+                          className={inputClass}
+                        />
+                      </div>
+                      <div className="flex gap-aq-sm">
+                        <div className="flex-1">
+                          <p className={labelClass}>Perimeter (m)</p>
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={editBandState.perimeter_m}
+                            onChange={(e) => setEditBandState((prev) => ({ ...prev, perimeter_m: e.target.value }))}
+                            className={inputClass}
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <p className={labelClass}>Labour (min)</p>
+                          <input
+                            type="number"
+                            value={editBandState.labour_min}
+                            onChange={(e) => setEditBandState((prev) => ({ ...prev, labour_min: e.target.value }))}
+                            className={inputClass}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex gap-aq-sm">
+                        <Button
+                          variant="primary"
+                          className="flex-1"
+                          onClick={() => {
+                            setBands((prev) => prev.map((b, i) =>
+                              i === editingBandIdx
+                                ? { name: editBandState.name, perimeter_m: parseFloat(editBandState.perimeter_m) || 0, labour_min: parseInt(editBandState.labour_min, 10) || 0 }
+                                : b
+                            ))
+                            setEditingBandIdx(null)
+                            setEditBandState(null)
+                          }}
+                        >
+                          Save
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          className="flex-1"
+                          onClick={() => { setEditingBandIdx(null); setEditBandState(null) }}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div key={idx} className="bg-aq-surface border border-aq-border rounded-aq-xl p-aq-lg flex items-center justify-between gap-aq-sm">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-secondary font-medium text-aq-ink">{band.name}</p>
+                        <p className="text-caption text-aq-muted">{band.perimeter_m}m perimeter · {band.labour_min} min</p>
+                      </div>
+                      <div className="flex gap-aq-sm shrink-0">
+                        <Button
+                          variant="secondary"
+                          onClick={() => {
+                            setEditingBandIdx(idx)
+                            setEditBandState({ name: band.name, perimeter_m: String(band.perimeter_m), labour_min: String(band.labour_min) })
+                          }}
+                        >
+                          Edit
+                        </Button>
+                        {bands.length > 1 && (
+                          <Button variant="destructive" onClick={() => setDeleteBandIdx(idx)}>
+                            Delete
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                ))}
+              </div>
+              <Button
+                variant="secondary"
+                fullWidth
+                onClick={() => {
+                  const newBand = { name: 'New size', perimeter_m: 4.0, labour_min: 20 }
+                  setBands((prev) => [...prev, newBand])
+                  setEditingBandIdx(bands.length)
+                  setEditBandState({ name: 'New size', perimeter_m: '4.0', labour_min: '20' })
+                }}
+              >
+                Add band
+              </Button>
+            </div>
+
             {/* Suppliers */}
             <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg">
               <h2 className="text-section font-medium text-aq-ink mb-aq-lg">Suppliers</h2>
@@ -642,6 +766,19 @@ export default function SettingsPage() {
         variant="destructive"
         onConfirm={confirmDeleteZone}
         onCancel={() => setDeleteZoneId(null)}
+      />
+
+      <ConfirmModal
+        open={deleteBandIdx !== null}
+        question="Delete this size band?"
+        confirmLabel="Yes, delete"
+        cancelLabel="Keep"
+        variant="destructive"
+        onConfirm={() => {
+          setBands((prev) => prev.filter((_, i) => i !== deleteBandIdx))
+          setDeleteBandIdx(null)
+        }}
+        onCancel={() => setDeleteBandIdx(null)}
       />
 
       <ConfirmModal

@@ -305,6 +305,15 @@ export default function AddItemPage() {
             >
               Custom item
             </button>
+
+            <button
+              type="button"
+              onClick={() => router.push(`/jobs/${params.id}/items/rubber`)}
+              className="w-full min-h-tap px-aq-xl bg-white border border-aq-border rounded-aq-xl text-left hover:bg-aq-surface active:bg-aq-border transition-colors duration-150 py-3"
+            >
+              <span className="block text-body font-medium text-aq-ink">Rubber and weatherseal estimate</span>
+              <span className="block text-secondary text-aq-muted font-normal mt-0.5">Quick estimate across many windows</span>
+            </button>
           </div>
         )}
 
