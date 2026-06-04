@@ -41,16 +41,21 @@ export default function QuotePage() {
 
   const [quoteParts, setQuoteParts] = useState(() => {
     if (!currentJob) return []
-    return (currentJob.items || []).flatMap((item, iIdx) =>
-      (item.parts || []).map((p, pIdx) => ({
+    return (currentJob.items || []).flatMap((item, iIdx) => {
+      const itemLabel = item.type === 'diagnosed'
+        ? [item.joinery_type_label, item.fault_label].filter(Boolean).join(' - ')
+        : (item.description || 'Custom item')
+      return (item.parts || []).map((p, pIdx) => ({
         _key: `${item.id || iIdx}-${p.part_id || pIdx}`,
+        _itemId: item.id || String(iIdx),
+        _itemLabel: itemLabel,
         name: p.name,
         sku: p.sku,
         sell_price: p.sell_price,
         qty: p.qty,
         unit: p.unit,
       }))
-    )
+    })
   })
 
   const [labourHours, setLabourHours] = useState(() => {
@@ -89,6 +94,15 @@ export default function QuotePage() {
   useEffect(() => {
     setIsRevise(new URLSearchParams(window.location.search).get('revise') === 'true')
   }, [])
+
+  const groupedQuoteParts = (() => {
+    const map = new Map()
+    for (const p of quoteParts) {
+      if (!map.has(p._itemId)) map.set(p._itemId, { label: p._itemLabel, parts: [] })
+      map.get(p._itemId).parts.push(p)
+    }
+    return [...map.entries()].map(([itemId, g]) => ({ itemId, ...g }))
+  })()
 
   const partsSubtotal = quoteParts.reduce((s, p) => s + p.sell_price * p.qty, 0)
   const labourTotal = labourHours * hourlyRate
@@ -278,32 +292,50 @@ export default function QuotePage() {
             <p className="text-secondary text-aq-muted mb-aq-md">No parts added.</p>
           ) : (
             <div className="mb-aq-md">
-              {quoteParts.map((p) => (
-                <div
-                  key={p._key}
-                  className="flex items-center gap-aq-sm py-aq-sm border-b border-aq-border last:border-0"
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-secondary font-medium text-aq-ink leading-snug truncate">
-                      {p.name}
-                    </p>
-                    <p className="text-caption text-aq-subtle">
-                      x{p.qty} @ {formatCurrency(p.sell_price)}/{p.unit}
-                    </p>
+              {groupedQuoteParts.map((group, gIdx) => {
+                const groupTotal = group.parts.reduce((s, p) => s + p.sell_price * p.qty, 0)
+                return (
+                  <div key={group.itemId} className={gIdx > 0 ? 'mt-aq-md pt-aq-md border-t border-aq-border' : ''}>
+                    {groupedQuoteParts.length > 1 && (
+                      <p className="text-caption font-medium text-aq-muted mb-aq-sm">{group.label}</p>
+                    )}
+                    {group.parts.map((p) => (
+                      <div
+                        key={p._key}
+                        className="flex items-center gap-aq-sm py-aq-sm border-b border-aq-border last:border-0"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-secondary font-medium text-aq-ink leading-snug truncate">
+                            {p.name}
+                          </p>
+                          <p className="text-caption text-aq-subtle">
+                            x{p.qty} @ {formatCurrency(p.sell_price)}/{p.unit}
+                          </p>
+                        </div>
+                        <span className="text-secondary font-medium text-aq-ink shrink-0 w-[72px] text-right">
+                          {formatCurrency(p.sell_price * p.qty)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removePart(p._key)}
+                          className="min-h-tap min-w-[48px] flex items-center justify-center text-aq-error hover:bg-aq-error-tint rounded-aq-md transition-colors"
+                          aria-label={`Remove ${p.name}`}
+                        >
+                          <XIcon />
+                        </button>
+                      </div>
+                    ))}
+                    {groupedQuoteParts.length > 1 && (
+                      <div className="flex justify-between items-baseline pt-aq-xs mt-aq-xs">
+                        <span className="text-caption text-aq-muted">Item subtotal</span>
+                        <span className="text-secondary font-medium text-aq-ink w-[72px] text-right">
+                          {formatCurrency(groupTotal)}
+                        </span>
+                      </div>
+                    )}
                   </div>
-                  <span className="text-secondary font-medium text-aq-ink shrink-0 w-[72px] text-right">
-                    {formatCurrency(p.sell_price * p.qty)}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => removePart(p._key)}
-                    className="min-h-tap min-w-[48px] flex items-center justify-center text-aq-error hover:bg-aq-error-tint rounded-aq-md transition-colors"
-                    aria-label={`Remove ${p.name}`}
-                  >
-                    <XIcon />
-                  </button>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
           <Button

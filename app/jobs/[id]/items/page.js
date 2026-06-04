@@ -15,33 +15,27 @@ function ItemCard({ item, onDelete }) {
     0
   )
 
+  const heading = item.type === 'diagnosed'
+    ? [item.joinery_type_label, item.fault_label].filter(Boolean).join(' - ')
+    : null
+
   return (
     <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg">
-      {/* Heading row */}
-      <div className="flex items-start justify-between gap-aq-sm mb-aq-sm">
-        <div className="flex-1 min-w-0">
-          {item.type === 'diagnosed' ? (
-            <>
-              <p className="text-body font-medium text-aq-ink">
-                {item.joinery_type_label}
-              </p>
-              <p className="text-secondary text-aq-muted">{item.fault_label}</p>
-            </>
-          ) : (
-            <div className="flex items-center gap-aq-sm flex-wrap">
-              <p className="text-body font-medium text-aq-ink">
-                {item.description || 'Custom item'}
-              </p>
-              <StatusBadge status="custom" />
-            </div>
-          )}
-        </div>
-        <p className="text-body font-medium text-aq-ink shrink-0">
-          {formatCurrency(partsTotal)}
-        </p>
+      {/* Heading */}
+      <div className="mb-aq-sm">
+        {item.type === 'diagnosed' ? (
+          <p className="text-body font-medium text-aq-ink">{heading}</p>
+        ) : (
+          <div className="flex items-center gap-aq-sm flex-wrap">
+            <p className="text-body font-medium text-aq-ink">
+              {item.description || 'Custom item'}
+            </p>
+            <StatusBadge status="custom" />
+          </div>
+        )}
       </div>
 
-      {/* Parts list */}
+      {/* Parts list + subtotal */}
       {item.parts && item.parts.length > 0 && (
         <div className="mb-aq-md border-t border-aq-border pt-aq-sm">
           {item.parts.map((p, idx) => (
@@ -58,6 +52,10 @@ function ItemCard({ item, onDelete }) {
               </span>
             </div>
           ))}
+          <div className="flex justify-between items-baseline pt-aq-xs border-t border-aq-border mt-aq-xs">
+            <span className="text-secondary text-aq-muted">Subtotal</span>
+            <span className="text-body font-medium text-aq-ink">{formatCurrency(partsTotal)}</span>
+          </div>
         </div>
       )}
 
