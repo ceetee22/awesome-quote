@@ -3,21 +3,10 @@
 import Link from 'next/link'
 import { useJob } from '@/lib/job-context'
 import { useSettings } from '@/lib/settings-context'
-import { formatCurrency, calcGst } from '@/lib/pricing'
+import { formatCurrency, jobTotalIncGst } from '@/lib/pricing'
 import StatusBadge from '@/components/StatusBadge'
 import BackButton from '@/components/BackButton'
 
-function jobTotal(job, hourlyRate, gstRate) {
-  const parts = (job.items || [])
-    .flatMap((i) => i.parts || [])
-    .reduce((s, p) => s + p.sell_price * p.qty, 0)
-  const labour = (job.items || []).reduce(
-    (s, i) => s + (i.labour_hours || 0) * (job.hourly_rate || hourlyRate),
-    0
-  )
-  const subtotal = parts + labour + (job.callout_fee || 0)
-  return subtotal + calcGst(subtotal, gstRate)
-}
 
 function formatTime(time) {
   if (!time) return ''
@@ -33,7 +22,7 @@ function formatTime(time) {
 
 function JobCard({ job, hourlyRate, gstRate }) {
   const itemCount = (job.items || []).length
-  const total = jobTotal(job, hourlyRate, gstRate)
+  const total = jobTotalIncGst(job, hourlyRate, gstRate)
 
   return (
     <Link
