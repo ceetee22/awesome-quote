@@ -50,53 +50,47 @@ function RubberPickerOverlay({ onSelect, onClose }) {
     : parts
 
   return (
-    <div className="fixed inset-0 z-50 bg-white flex flex-col">
-      <div className="flex items-center gap-aq-sm px-aq-lg py-aq-md border-b border-aq-border">
-        <button
-          type="button"
-          onClick={onClose}
-          className="min-h-tap min-w-[48px] flex items-center justify-center text-aq-ink hover:text-aq-green transition-colors"
-          aria-label="Close"
-        >
-          <XIcon size={20} />
-        </button>
-        <h2 className="text-section font-medium text-aq-ink">Select rubber type</h2>
-      </div>
-      <div className="px-aq-lg py-aq-md border-b border-aq-border">
-        <input
-          type="search"
-          autoFocus
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search seals and weatherstrips"
-          className="w-full bg-white border border-aq-border rounded-aq-md min-h-tap px-4 text-body text-aq-ink placeholder:text-aq-subtle focus:outline-none focus:border-aq-green transition-colors"
-        />
-      </div>
-      <div className="flex-1 overflow-y-auto px-aq-lg py-aq-md">
-        {filtered.length === 0 ? (
-          <p className="text-secondary text-aq-muted text-center py-aq-2xl">No seals found.</p>
-        ) : (
-          <div className="flex flex-col gap-[10px]">
-            {filtered.map((part) => (
-              <button
-                key={part.id}
-                type="button"
-                onClick={() => onSelect(part)}
-                className="w-full bg-white border border-aq-border rounded-aq-xl p-aq-lg text-left hover:bg-aq-surface active:bg-aq-border transition-colors duration-150"
-              >
-                <div className="flex justify-between items-start gap-aq-sm">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-body font-medium text-aq-ink leading-snug">{part.name}</p>
-                    <p className="text-caption text-aq-muted">{part.sku}</p>
+    <div className="fixed inset-0 z-50 bg-aq-surface">
+      <div className="max-w-[480px] mx-auto h-full flex flex-col bg-white">
+        <div className="flex items-center px-aq-lg py-aq-md border-b border-aq-border shrink-0">
+          <BackButton onClick={onClose} label="Rubber estimate" />
+        </div>
+        <div className="px-aq-lg py-aq-md border-b border-aq-border shrink-0">
+          <input
+            type="search"
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search seals and weatherstrips"
+            className="w-full bg-white border border-aq-border rounded-aq-md min-h-tap px-4 text-body text-aq-ink placeholder:text-aq-subtle focus:outline-none focus:border-aq-green transition-colors"
+          />
+        </div>
+        <div className="flex-1 overflow-y-auto px-aq-lg py-aq-md">
+          {filtered.length === 0 ? (
+            <p className="text-secondary text-aq-muted text-center py-aq-2xl">No seals found.</p>
+          ) : (
+            <div className="flex flex-col gap-[10px]">
+              {filtered.map((part) => (
+                <button
+                  key={part.id}
+                  type="button"
+                  onClick={() => onSelect(part)}
+                  className="w-full bg-white border border-aq-border rounded-aq-xl p-aq-lg text-left hover:bg-aq-surface active:bg-aq-border transition-colors duration-150"
+                >
+                  <div className="flex justify-between items-start gap-aq-sm">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-body font-medium text-aq-ink leading-snug">{part.name}</p>
+                      <p className="text-caption text-aq-muted">{part.sku}</p>
+                    </div>
+                    <span className="text-body font-medium text-aq-green shrink-0">
+                      {formatCurrency(part.sell_price)}/{part.unit || 'm'}
+                    </span>
                   </div>
-                  <span className="text-body font-medium text-aq-green shrink-0">
-                    {formatCurrency(part.sell_price)}/{part.unit || 'm'}
-                  </span>
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
