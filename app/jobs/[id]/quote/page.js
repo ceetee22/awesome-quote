@@ -53,7 +53,12 @@ export default function QuotePage() {
     )
   })
 
-  const [labourHours, setLabourHours] = useState(currentJob?.labour_hours ?? 0)
+  const [labourHours, setLabourHours] = useState(() => {
+    const saved = currentJob?.labour_hours
+    if (saved > 0) return saved
+    if (currentJob?.estimated_duration > 0) return currentJob.estimated_duration
+    return 1
+  })
 
   const initFee = currentJob?.callout_fee ?? zones[0]?.fee ?? 0
   const initZone = currentJob?.callout_fee != null
@@ -322,8 +327,7 @@ export default function QuotePage() {
             <Stepper
               value={labourHours}
               onChange={setLabourHours}
-              min={0}
-              max={20}
+              min={0.5}
               step={0.5}
             />
             <span className="text-secondary text-aq-muted shrink-0">
