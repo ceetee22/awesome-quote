@@ -603,7 +603,7 @@ export default function JobDetailPage() {
           Edit quote
         </Button>
         <Button variant="secondary" fullWidth onClick={() => setResendModalOpen(true)}>
-          Resend quote
+          Download quote again
         </Button>
         <Button variant="destructive" fullWidth onClick={() => setDeclineModalOpen(true)}>
           Mark as declined
@@ -844,7 +844,7 @@ export default function JobDetailPage() {
 
       <ConfirmModal
         open={resendModalOpen}
-        question={`Download the quote PDF to resend to ${currentJob.customer_name}?`}
+        question={`Download the quote PDF again to send to ${currentJob.customer_name}?`}
         confirmLabel="Yes, download"
         cancelLabel="Not yet"
         onConfirm={async () => { setResendModalOpen(false); await handleDownloadPdf() }}

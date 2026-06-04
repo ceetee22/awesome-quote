@@ -405,7 +405,7 @@ export default function QuotePage() {
           {isRevise ? (
             <>
               <Button variant="primary" fullWidth onClick={() => setReviseModalOpen(true)}>
-                Send revised quote
+                Download revised quote
               </Button>
               <Button variant="secondary" fullWidth onClick={() => router.push(`/jobs/${params.id}`)}>
                 Cancel
@@ -414,7 +414,7 @@ export default function QuotePage() {
           ) : (
             <>
               <Button variant="primary" fullWidth onClick={() => setSendModalOpen(true)}>
-                Send quote
+                Download quote PDF
               </Button>
               <Button variant="secondary" fullWidth onClick={handleSaveDraft}>
                 Save draft
@@ -428,8 +428,8 @@ export default function QuotePage() {
       {/* Normal send modal */}
       <ConfirmModal
         open={sendModalOpen}
-        question={`Send this quote for ${formatCurrency(total)} to ${currentJob.customer_name}?`}
-        confirmLabel="Yes, send"
+        question={`Download this quote for ${formatCurrency(total)} to send to ${currentJob.customer_name}?`}
+        confirmLabel="Yes, download"
         cancelLabel="Not yet"
         onConfirm={handleSendConfirm}
         onCancel={() => setSendModalOpen(false)}
@@ -445,7 +445,7 @@ export default function QuotePage() {
         >
           <div className="bg-white rounded-aq-xl p-aq-xl w-full max-w-sm shadow-lg">
             <p className="text-body font-medium text-aq-ink mb-aq-sm">
-              Send revised quote to {currentJob.customer_name}?
+              Download revised quote for {currentJob.customer_name}?
             </p>
             <p className="text-secondary text-aq-muted mb-aq-lg">
               The new total is {formatCurrency(total)}, up from {formatCurrency(originalTotal)}. They will need to accept again.
@@ -468,7 +468,7 @@ export default function QuotePage() {
                 onClick={handleReviseConfirm}
                 className="w-full min-h-tap text-btn font-medium rounded-aq-lg bg-aq-green text-white hover:bg-aq-green-hover active:bg-aq-green-pressed transition-colors duration-150"
               >
-                Yes, send revised quote
+                Yes, download
               </button>
               <button
                 type="button"
