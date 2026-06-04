@@ -96,9 +96,9 @@ export default function DonePage() {
     )
   }
 
-  const allBeforePhotos = (data.items || []).flatMap((item) => item.before_photos || [])
-  const afterPhotos = data.after_photos || []
-  const hasPhotos = allBeforePhotos.length > 0 || afterPhotos.length > 0
+  const items = data.items || []
+  const legacyAfterPhotos = data.legacy_after_photos || []
+  const hasPhotos = items.length > 0 || legacyAfterPhotos.length > 0
 
   return (
     <div style={wrap}>
@@ -137,17 +137,30 @@ export default function DonePage() {
           </div>
         )}
 
-        {allBeforePhotos.length > 0 && (
-          <div style={{ marginBottom: 32 }}>
-            <p style={{ fontWeight: 500, fontSize: 18, color: C.ink, margin: '0 0 16px' }}>Before</p>
-            <PhotoGallery photos={allBeforePhotos} />
+        {items.map((item) => (
+          <div key={item.id} style={{ marginBottom: 32 }}>
+            <p style={{ fontWeight: 600, fontSize: 16, color: C.ink, margin: '0 0 12px' }}>
+              {item.label}
+            </p>
+            {item.before_photos.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <p style={{ fontWeight: 500, fontSize: 14, color: C.muted, margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Before</p>
+                <PhotoGallery photos={item.before_photos} />
+              </div>
+            )}
+            {item.after_photos.length > 0 && (
+              <div>
+                <p style={{ fontWeight: 500, fontSize: 14, color: C.muted, margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>After</p>
+                <PhotoGallery photos={item.after_photos} />
+              </div>
+            )}
           </div>
-        )}
+        ))}
 
-        {afterPhotos.length > 0 && (
+        {legacyAfterPhotos.length > 0 && (
           <div style={{ marginBottom: 32 }}>
             <p style={{ fontWeight: 500, fontSize: 18, color: C.ink, margin: '0 0 16px' }}>After</p>
-            <PhotoGallery photos={afterPhotos} />
+            <PhotoGallery photos={legacyAfterPhotos} />
           </div>
         )}
 

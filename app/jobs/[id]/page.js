@@ -128,7 +128,7 @@ function formatPaidDate(isoString) {
 export default function JobDetailPage() {
   const params = useParams()
   const router = useRouter()
-  const { jobs, currentJob, setCurrentJob, selectJob } = useJob()
+  const { jobs, currentJob, setCurrentJob, selectJob, updateItem } = useJob()
   const { settings } = useSettings()
 
   const [backHref, setBackHref] = useState('/')
@@ -157,8 +157,6 @@ export default function JobDetailPage() {
     return v > 0 ? String(v) : ''
   })
 
-  const [afterPhotos, setAfterPhotos] = useState(currentJob?.after_photos || [])
-
   function handleParkingChange(e) {
     const val = e.target.value
     setParkingInput(val)
@@ -166,17 +164,19 @@ export default function JobDetailPage() {
     setCurrentJob((prev) => ({ ...prev, parking_fee: parsed }))
   }
 
-  function handleAfterPhotosChange(photos) {
-    setAfterPhotos(photos)
-    setCurrentJob((prev) => ({ ...prev, after_photos: photos }))
+  function handleItemAfterPhotoChange(itemId, newAfterPhotos) {
+    const item = (currentJob?.items || []).find((i) => i.id === itemId)
+    const beforePhotos = (item?.photos || []).filter((p) => p.type === 'before')
+    updateItem(itemId, { photos: [...beforePhotos, ...newAfterPhotos] })
   }
 
   const allBeforePhotos = (currentJob?.items || []).flatMap((item) => (item.photos || []).filter((p) => p.type === 'before'))
+  const allAfterPhotos  = (currentJob?.items || []).flatMap((item) => (item.photos || []).filter((p) => p.type === 'after'))
 
   async function handleDownloadPhotos() {
     const photos = [
       ...allBeforePhotos.map((p, i) => ({ url: p.url, filename: `before-${i + 1}.jpg` })),
-      ...(currentJob?.after_photos || []).map((p, i) => ({ url: p.url, filename: `after-${i + 1}.jpg` })),
+      ...allAfterPhotos.map((p, i) => ({ url: p.url, filename: `after-${i + 1}.jpg` })),
     ]
     for (const photo of photos) {
       try {
@@ -279,12 +279,20 @@ export default function JobDetailPage() {
   }
 
   function handleXeroConfirm() {
-    setCurrentJob((prev) => ({ ...prev, status: 'invoiced' }))
+    setCurrentJob((prev) => ({
+      ...prev,
+      status: 'invoiced',
+      completed_at: prev.completed_at || new Date().toISOString(),
+    }))
     setXeroModalOpen(false)
   }
 
   function handleCompleteConfirm() {
-    setCurrentJob((prev) => ({ ...prev, status: 'completed' }))
+    setCurrentJob((prev) => ({
+      ...prev,
+      status: 'completed',
+      completed_at: new Date().toISOString(),
+    }))
     setCompleteModalOpen(false)
     setInvoiceModalOpen(true)
   }
@@ -490,16 +498,28 @@ export default function JobDetailPage() {
     </div>
   )
 
-  const afterPhotosCard = (
+  const afterPhotosSection = hasItems && (
     <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg">
-      <PhotoCapture
-        label="After photos"
-        buttonLabel="Add after photo"
-        photos={afterPhotos}
-        onChange={handleAfterPhotosChange}
-        uploadOpts={{ jobId: currentJob.id, type: 'after' }}
-      />
-      {afterPhotos.length > 0 && (
+      <h2 className="text-section font-medium text-aq-ink mb-aq-md">After photos</h2>
+      <div className="flex flex-col gap-aq-lg">
+        {(currentJob.items || []).map((item) => {
+          const itemLabel = item.type === 'custom'
+            ? (item.description || 'Custom item')
+            : [JOINERY_TYPE_LABELS[item.joinery_type] || item.joinery_type, getFaultLabel(item.joinery_type, item.fault)].filter(Boolean).join(' - ')
+          const itemAfterPhotos = (item.photos || []).filter((p) => p.type === 'after')
+          return (
+            <PhotoCapture
+              key={item.id}
+              label={itemLabel}
+              buttonLabel="Add after photo"
+              photos={itemAfterPhotos}
+              onChange={(photos) => handleItemAfterPhotoChange(item.id, photos)}
+              uploadOpts={{ jobId: currentJob.id, itemId: item.id, type: 'after' }}
+            />
+          )
+        })}
+      </div>
+      {allAfterPhotos.length > 0 && (
         <p className="text-caption text-aq-muted mt-aq-md">
           Share with customer: <a
             href={`/done/${currentJob.id}`}
@@ -662,7 +682,7 @@ export default function JobDetailPage() {
       {quoteSummaryCard}
       {parkingCard}
       {profitCard}
-      {afterPhotosCard}
+      {afterPhotosSection}
 
       <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg">
         <h2 className="text-section font-medium text-aq-ink mb-aq-md">Next steps</h2>
@@ -775,7 +795,7 @@ export default function JobDetailPage() {
       {quoteSummaryCard}
       {parkingCard}
       {profitCard}
-      {afterPhotosCard}
+      {afterPhotosSection}
       {trackerCard}
     </>
   )
@@ -821,7 +841,7 @@ export default function JobDetailPage() {
       {quoteSummaryCard}
       {parkingCard}
       {profitCard}
-      {afterPhotosCard}
+      {afterPhotosSection}
 
       <div className="flex flex-col gap-aq-sm">
         {status === 'completed' && (
@@ -832,7 +852,7 @@ export default function JobDetailPage() {
         <Button variant="secondary" fullWidth onClick={handleDownloadPdf}>
           Download PDF
         </Button>
-        {(allBeforePhotos.length > 0 || afterPhotos.length > 0) && (
+        {(allBeforePhotos.length > 0 || allAfterPhotos.length > 0) && (
           <Button variant="secondary" fullWidth onClick={handleDownloadPhotos}>
             Download photos
           </Button>

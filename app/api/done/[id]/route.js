@@ -43,13 +43,14 @@ export async function GET(request, { params }) {
     business_name: settings.business_name || 'Awesome Building Services',
     business_phone: settings.business_phone || '',
     business_email: settings.business_email || '',
-    after_photos: job.after_photos || [],
+    legacy_after_photos: job.after_photos || [],
     items: (job.job_items || []).map((item) => ({
       id: item.id,
       label: item.type === 'diagnosed'
         ? [item.joinery_type_label, item.fault_label].filter(Boolean).join(' - ')
         : (item.description || 'Custom item'),
       before_photos: (item.photos || []).filter((p) => p.type === 'before'),
-    })).filter((item) => item.before_photos.length > 0),
+      after_photos: (item.photos || []).filter((p) => p.type === 'after'),
+    })).filter((item) => item.before_photos.length > 0 || item.after_photos.length > 0),
   })
 }
