@@ -69,6 +69,104 @@ function PartPickerCard({ part, partState, onToggle, onSetQty }) {
   )
 }
 
+// ── Inline SVG icons ─────────────────────────────────────────────────────────
+
+function SvgBase({ children }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full" aria-hidden="true">
+      {children}
+    </svg>
+  )
+}
+function IconArrows()       { return <SvgBase><path d="M4 12H20M4 12L8 8M4 12L8 16M20 12L16 8M20 12L16 16"/></SvgBase> }
+function IconColumns()      { return <SvgBase><path d="M3 3h8v18H3V3zM13 3h8v18h-8V3z"/></SvgBase> }
+function IconDoor()         { return <SvgBase><path d="M4 2h12v20H4V2zM13 12h2"/></SvgBase> }
+function IconWindow()       { return <SvgBase><path d="M3 3h18v18H3V3zM3 12h18M12 3v18"/></SvgBase> }
+function IconPencil()       { return <SvgBase><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></SvgBase> }
+function IconRuler()        { return <SvgBase><path d="M2 8h20v8H2V8zM7 8v4M11 8v3M15 8v4M19 8v3"/></SvgBase> }
+function IconLock()         { return <SvgBase><path d="M19 11H5a2 2 0 00-2 2v7a2 2 0 002 2h14a2 2 0 002-2v-7a2 2 0 00-2-2zM7 11V7a5 5 0 0110 0v4"/></SvgBase> }
+function IconAlertTriangle(){ return <SvgBase><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4M12 17h.01"/></SvgBase> }
+function IconWrench()       { return <SvgBase><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></SvgBase> }
+function IconWind()         { return <SvgBase><path d="M17.7 7.7a2.5 2.5 0 111.8 4.3H2M9.6 4.6A2 2 0 1111 8H2M12.6 19.4A2 2 0 1014 16H2"/></SvgBase> }
+function IconAlign()        { return <SvgBase><path d="M21 6H3M21 12H9M21 18H3"/></SvgBase> }
+function IconRefreshCw()    { return <SvgBase><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></SvgBase> }
+function IconMoreDots() {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full" aria-hidden="true">
+      <circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/>
+    </svg>
+  )
+}
+
+// Icon assignments for joinery types
+const JOINERY_TYPE_ICONS = {
+  sliding_door:  IconArrows,
+  bifold_door:   IconColumns,
+  hinged_door:   IconDoor,
+  window_ali:    IconWindow,
+  window_timber: IconWindow,
+}
+
+// Icon + grey-chip flag by fault label (lowercase key)
+const FAULT_ICON_MAP = {
+  'stiff or hard to slide':   { Icon: IconArrows,        grey: false },
+  "won't lock or latch":      { Icon: IconLock,          grey: false },
+  'off track or jumping':     { Icon: IconAlertTriangle, grey: false },
+  'broken handle':            { Icon: IconWrench,        grey: false },
+  'drafty or leaking':        { Icon: IconWind,          grey: false },
+  'other':                    { Icon: IconMoreDots,      grey: true  },
+  'stiff or dragging':        { Icon: IconArrows,        grey: false },
+  'misaligned panels':        { Icon: IconAlign,         grey: false },
+  'broken hinge':             { Icon: IconWrench,        grey: false },
+  "won't fold or unfold":     { Icon: IconRefreshCw,     grey: false },
+  'lock fault':               { Icon: IconLock,          grey: false },
+  'stiff or sagging':         { Icon: IconArrows,        grey: false },
+  "won't close properly":     { Icon: IconRefreshCw,     grey: false },
+  'lock or latch fault':      { Icon: IconLock,          grey: false },
+  "won't open or close":      { Icon: IconRefreshCw,     grey: false },
+  'broken stay':              { Icon: IconWrench,        grey: false },
+  'swollen or stuck':         { Icon: IconAlertTriangle, grey: false },
+}
+function getFaultMeta(label) {
+  return FAULT_ICON_MAP[label.toLowerCase()] || { Icon: IconWrench, grey: false }
+}
+
+// Tappable picker card used for both type and fault screens
+function PickerCard({ Icon, label, subtitle, grey, onClick }) {
+  const chipBg    = grey ? 'bg-[#F1EFE8] group-active:bg-aq-green' : 'bg-aq-green-tint group-active:bg-aq-green'
+  const iconColor = grey ? 'text-aq-muted group-active:text-white'  : 'text-aq-green group-active:text-white'
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group w-full flex items-center gap-aq-md bg-white border border-aq-border rounded-aq-xl min-h-[56px] px-aq-lg py-aq-sm text-left hover:bg-aq-surface active:bg-aq-green-tint active:border-aq-green transition-colors duration-150"
+    >
+      {/* Icon chip */}
+      <div className={`w-10 h-10 rounded-aq-lg flex items-center justify-center shrink-0 transition-colors duration-150 ${chipBg}`}>
+        <div className={`w-5 h-5 transition-colors duration-150 ${iconColor}`}>
+          <Icon />
+        </div>
+      </div>
+
+      {/* Label + optional subtitle */}
+      <div className="flex-1 min-w-0">
+        <span className="block text-body font-medium text-aq-ink leading-snug">{label}</span>
+        {subtitle && (
+          <span className="block text-secondary text-aq-muted mt-[2px]">{subtitle}</span>
+        )}
+      </div>
+
+      {/* Trailing chevron (normal) or tick (active) */}
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-aq-subtle shrink-0 group-active:hidden transition-colors duration-150" aria-hidden="true">
+        <path d="M9 18l6-6-6-6"/>
+      </svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-aq-green shrink-0 hidden group-active:block" aria-hidden="true">
+        <path d="M20 6L9 17l-5-5"/>
+      </svg>
+    </button>
+  )
+}
+
 const FILTER_CATEGORIES = [
   PART_CATEGORY.ROLLERS,
   PART_CATEGORY.STAYS,
@@ -291,16 +389,17 @@ export default function AddItemPage() {
         {/* ── Step 1: Joinery type ── */}
         {step === 'type' && (
           <div className="flex flex-col gap-[10px]">
-            {Object.entries(JOINERY_TYPE_LABELS).map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => selectJoineryType(value)}
-                className="w-full min-h-tap px-aq-xl text-body font-medium text-aq-ink bg-white border border-aq-border rounded-aq-xl text-left hover:bg-aq-surface active:bg-aq-border transition-colors duration-150"
-              >
-                {label}
-              </button>
-            ))}
+            {Object.entries(JOINERY_TYPE_LABELS).map(([value, label]) => {
+              const IconComp = JOINERY_TYPE_ICONS[value]
+              return (
+                <PickerCard
+                  key={value}
+                  Icon={IconComp}
+                  label={label}
+                  onClick={() => selectJoineryType(value)}
+                />
+              )
+            })}
 
             <div className="flex items-center gap-aq-md my-aq-sm">
               <div className="flex-1 h-px bg-aq-border" />
@@ -308,22 +407,20 @@ export default function AddItemPage() {
               <div className="flex-1 h-px bg-aq-border" />
             </div>
 
-            <button
-              type="button"
+            <PickerCard
+              Icon={IconPencil}
+              label="Custom item"
+              grey
               onClick={() => router.push(`/jobs/${params.id}/items/custom`)}
-              className="w-full min-h-tap px-aq-xl text-body font-medium text-aq-ink bg-white border border-aq-border rounded-aq-xl text-left hover:bg-aq-surface active:bg-aq-border transition-colors duration-150"
-            >
-              Custom item
-            </button>
+            />
 
-            <button
-              type="button"
+            <PickerCard
+              Icon={IconRuler}
+              label="Rubber and weatherseal estimate"
+              subtitle="Quick estimate across many windows"
+              grey
               onClick={() => router.push(`/jobs/${params.id}/items/rubber`)}
-              className="w-full min-h-tap px-aq-xl bg-white border border-aq-border rounded-aq-xl text-left hover:bg-aq-surface active:bg-aq-border transition-colors duration-150 py-3"
-            >
-              <span className="block text-body font-medium text-aq-ink">Rubber and weatherseal estimate</span>
-              <span className="block text-secondary text-aq-muted font-normal mt-0.5">Quick estimate across many windows</span>
-            </button>
+            />
           </div>
         )}
 
@@ -331,16 +428,18 @@ export default function AddItemPage() {
         {step === 'fault' && (
           <div className="flex flex-col gap-[10px]">
             <p className="text-secondary text-aq-muted mb-aq-sm">What is wrong with it?</p>
-            {faultOptions.map((option, idx) => (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => selectFault(option)}
-                className="w-full min-h-tap px-aq-xl text-body font-medium text-aq-ink bg-white border border-aq-border rounded-aq-xl text-left hover:bg-aq-surface active:bg-aq-border transition-colors duration-150"
-              >
-                {option.label}
-              </button>
-            ))}
+            {faultOptions.map((option, idx) => {
+              const { Icon, grey } = getFaultMeta(option.label)
+              return (
+                <PickerCard
+                  key={idx}
+                  Icon={Icon}
+                  label={option.label}
+                  grey={grey}
+                  onClick={() => selectFault(option)}
+                />
+              )
+            })}
           </div>
         )}
 
