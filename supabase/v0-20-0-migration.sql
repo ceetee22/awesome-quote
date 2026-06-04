@@ -1,0 +1,3 @@
+-- v0.20.0: parking fee
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS parking_fee DECIMAL(10,2) DEFAULT 0;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS parking_note_shown BOOLEAN DEFAULT true;

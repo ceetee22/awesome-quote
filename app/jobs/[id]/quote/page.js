@@ -75,6 +75,8 @@ export default function QuotePage() {
     currentJob?.callout_fee != null && !initZone ? String(initFee) : ''
   )
 
+  const [parkingNoteShown, setParkingNoteShown] = useState(() => currentJob?.parking_note_shown ?? true)
+
   const [sendModalOpen, setSendModalOpen] = useState(false)
   const [sendPhase, setSendPhase] = useState(null)
 
@@ -143,6 +145,7 @@ export default function QuotePage() {
         total,
         acceptanceUrl: `https://awesome-quote.vercel.app/accept/${params.id}`,
         logoUrl: settings.logo_url || null,
+        parkingNoteShown,
       })
       const safeName = (currentJob.customer_name || 'quote')
         .replace(/[^a-z0-9]/gi, '-')
@@ -153,7 +156,7 @@ export default function QuotePage() {
     }
     setCurrentJob((prev) =>
       prev
-        ? { ...prev, status: 'quoted', labour_hours: labourHours, callout_fee: calloutFee, hourly_rate: hourlyRate }
+        ? { ...prev, status: 'quoted', labour_hours: labourHours, callout_fee: calloutFee, hourly_rate: hourlyRate, parking_note_shown: parkingNoteShown }
         : prev
     )
     setSendPhase('done')
@@ -176,6 +179,7 @@ export default function QuotePage() {
         quoteVersion: newVersion,
         isRevision: true,
         logoUrl: settings.logo_url || null,
+        parkingNoteShown,
       })
       const safeName = (currentJob.customer_name || 'quote')
         .replace(/[^a-z0-9]/gi, '-')
@@ -195,6 +199,7 @@ export default function QuotePage() {
             quote_version: newVersion,
             previous_total: originalTotal,
             revision_note: reviseNote || null,
+            parking_note_shown: parkingNoteShown,
           }
         : prev
     )
@@ -204,7 +209,7 @@ export default function QuotePage() {
   function handleSaveDraft() {
     setCurrentJob((prev) =>
       prev
-        ? { ...prev, status: 'draft', labour_hours: labourHours, callout_fee: calloutFee, hourly_rate: hourlyRate }
+        ? { ...prev, status: 'draft', labour_hours: labourHours, callout_fee: calloutFee, hourly_rate: hourlyRate, parking_note_shown: parkingNoteShown }
         : prev
     )
     router.push('/')
@@ -416,6 +421,29 @@ export default function QuotePage() {
               className="flex-1 px-3 text-body text-aq-ink bg-white focus:outline-none min-w-0"
             />
           </div>
+        </div>
+
+        {/* Parking note toggle */}
+        <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg mb-aq-lg">
+          <button
+            type="button"
+            onClick={() => setParkingNoteShown((v) => !v)}
+            className="flex items-center justify-between w-full min-h-tap gap-aq-md"
+          >
+            <div className="text-left">
+              <p className="text-body font-medium text-aq-ink">Show parking note on quote</p>
+              <p className="text-caption text-aq-muted mt-[2px]">
+                Adds "Parking fees may apply" to the PDF
+              </p>
+            </div>
+            <div className={`relative inline-flex shrink-0 h-7 w-12 rounded-full transition-colors duration-150 ${
+              parkingNoteShown ? 'bg-aq-green' : 'bg-aq-border'
+            }`}>
+              <span className={`inline-block h-6 w-6 mt-0.5 rounded-full bg-white shadow transition-transform duration-150 ${
+                parkingNoteShown ? 'translate-x-5' : 'translate-x-0.5'
+              }`} />
+            </div>
+          </button>
         </div>
 
         {/* Totals */}

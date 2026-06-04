@@ -152,7 +152,19 @@ export default function JobDetailPage() {
   const [scheduleOpen, setScheduleOpen]           = useState(false)
   const [rescheduleMsg, setRescheduleMsg]         = useState('')
 
+  const [parkingInput, setParkingInput] = useState(() => {
+    const v = currentJob?.parking_fee
+    return v > 0 ? String(v) : ''
+  })
+
   const [afterPhotos, setAfterPhotos] = useState(currentJob?.after_photos || [])
+
+  function handleParkingChange(e) {
+    const val = e.target.value
+    setParkingInput(val)
+    const parsed = parseFloat(val) || 0
+    setCurrentJob((prev) => ({ ...prev, parking_fee: parsed }))
+  }
 
   function handleAfterPhotosChange(photos) {
     setAfterPhotos(photos)
@@ -205,21 +217,24 @@ export default function JobDetailPage() {
   const hourlyRate  = currentJob.hourly_rate  || settings.hourly_labour_rate
   const labourHours = currentJob.labour_hours || 0
   const calloutFee  = currentJob.callout_fee  || 0
+  const parkingFee  = currentJob.parking_fee  || 0
   const hasItems    = (currentJob.items || []).length > 0
 
-  const partsTotal  = (currentJob.items || [])
+  const partsTotal     = (currentJob.items || [])
     .flatMap((i) => i.parts || [])
     .reduce((s, p) => s + p.sell_price * p.qty, 0)
-  const labourTotal = labourHours * hourlyRate
-  const subtotal    = partsTotal + labourTotal + calloutFee
-  const gst         = calcGst(subtotal, settings.gst_rate)
-  const jobTotal    = subtotal + gst
+  const labourTotal    = labourHours * hourlyRate
+  const quoteSubtotal  = partsTotal + labourTotal + calloutFee
+  const subtotal       = quoteSubtotal + parkingFee
+  const gst            = calcGst(subtotal, settings.gst_rate)
+  const jobTotal       = subtotal + gst
 
   const partsGrossCost = (currentJob.items || [])
     .flatMap((i) => i.parts || [])
     .reduce((s, p) => s + (p.cost_price || 0) * p.qty, 0)
-  const profit       = subtotal - partsGrossCost
-  const profitMargin = subtotal > 0 ? profit / subtotal : 0
+  // Parking is pass-through (cost = recovery), excluded from profit
+  const profit       = quoteSubtotal - partsGrossCost
+  const profitMargin = quoteSubtotal > 0 ? profit / quoteSubtotal : 0
 
   const mapsUrl = currentJob.customer_address
     ? `https://maps.google.com/?q=${encodeURIComponent(currentJob.customer_address)}`
@@ -321,6 +336,7 @@ export default function JobDetailPage() {
         acceptanceUrl: `https://awesome-quote.vercel.app/accept/${currentJob.id}`,
         photosUrl: hasBeforePhotos ? `https://awesome-quote.vercel.app/done/${currentJob.id}` : null,
         logoUrl: settings.logo_url || null,
+        parkingNoteShown: currentJob.parking_note_shown ?? true,
       })
       const safeName = (currentJob.customer_name || 'quote')
         .replace(/[^a-z0-9]/gi, '-').toLowerCase()
@@ -430,6 +446,15 @@ export default function JobDetailPage() {
             <span className="text-secondary text-aq-muted">{formatCurrency(calloutFee)}</span>
           </div>
         )}
+        {parkingFee > 0 && (
+          <div className="flex justify-between">
+            <span className="text-secondary text-aq-muted">Parking</span>
+            <span className="text-secondary text-aq-muted">{formatCurrency(parkingFee)}</span>
+          </div>
+        )}
+        {parkingFee === 0 && currentJob.parking_note_shown && (
+          <p className="text-caption text-aq-muted">Parking fees may apply.</p>
+        )}
         <div className="flex justify-between">
           <span className="text-secondary text-aq-muted">GST ({settings.gst_rate}%)</span>
           <span className="text-secondary text-aq-muted">{formatCurrency(gst)}</span>
@@ -487,6 +512,28 @@ export default function JobDetailPage() {
     </div>
   )
 
+  const canEditParking = ['accepted', 'ordered', 'scheduled', 'completed'].includes(status)
+  const parkingCard = canEditParking && (
+    <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg">
+      <h2 className="text-section font-medium text-aq-ink mb-aq-sm">Parking fee</h2>
+      <p className="text-secondary text-aq-muted mb-aq-md">
+        Enter what you paid for parking. Charged to the customer at cost.
+      </p>
+      <div className="flex items-stretch border border-aq-border rounded-aq-md overflow-hidden min-h-tap focus-within:border-aq-green transition-colors bg-white">
+        <span className="px-3 flex items-center text-body text-aq-muted bg-aq-surface border-r border-aq-border shrink-0">
+          $
+        </span>
+        <input
+          type="number"
+          value={parkingInput}
+          onChange={handleParkingChange}
+          placeholder="0.00"
+          className="flex-1 px-3 text-body text-aq-ink bg-white focus:outline-none min-w-0"
+        />
+      </div>
+    </div>
+  )
+
   const showTracker = ['accepted', 'ordered', 'scheduled', 'completed', 'invoiced'].includes(status)
   const trackerCard = (
     <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg">
@@ -509,7 +556,7 @@ export default function JobDetailPage() {
       <div className="flex flex-col gap-aq-xs mb-aq-md">
         <div className="flex justify-between">
           <span className="text-secondary text-aq-muted">You charged</span>
-          <span className="text-secondary text-aq-ink">{formatCurrency(subtotal)}</span>
+          <span className="text-secondary text-aq-ink">{formatCurrency(quoteSubtotal)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-secondary text-aq-muted">Parts cost you</span>
@@ -613,6 +660,7 @@ export default function JobDetailPage() {
   const acceptedContent = (status === 'accepted' || status === 'ordered') && (
     <>
       {quoteSummaryCard}
+      {parkingCard}
       {profitCard}
       {afterPhotosCard}
 
@@ -725,6 +773,7 @@ export default function JobDetailPage() {
       </div>
 
       {quoteSummaryCard}
+      {parkingCard}
       {profitCard}
       {afterPhotosCard}
       {trackerCard}
@@ -770,6 +819,7 @@ export default function JobDetailPage() {
       )}
 
       {quoteSummaryCard}
+      {parkingCard}
       {profitCard}
       {afterPhotosCard}
 

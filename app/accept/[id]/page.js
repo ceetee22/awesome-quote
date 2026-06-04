@@ -68,7 +68,7 @@ function BusinessLogo({ logoUrl, bizName }) {
       />
     )
   }
-  return <BusinessLogo logoUrl={quote?.logo_url} bizName={bizName} />
+  return <AQMonogram />
 }
 
 // Totals computed from quote data
@@ -303,10 +303,15 @@ export default function AcceptPage() {
               <span style={{ fontSize: 14, color: C.muted }}>Subtotal</span>
               <span style={{ fontSize: 14, color: C.muted }}>{fmtCurrency(totals.subtotal)}</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: quote.parking_note_shown ? 6 : 12 }}>
               <span style={{ fontSize: 14, color: C.muted }}>GST ({quote.gst_rate}%)</span>
               <span style={{ fontSize: 14, color: C.muted }}>{fmtCurrency(totals.gst)}</span>
             </div>
+            {quote.parking_note_shown && (
+              <p style={{ fontSize: 13, color: C.muted, margin: '0 0 12px' }}>
+                Parking fees may apply and will be added at cost.
+              </p>
+            )}
             <div style={{
               display: 'flex', justifyContent: 'space-between',
               background: C.greenTint, border: `1px solid ${C.greenBorder}`,

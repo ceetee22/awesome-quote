@@ -59,6 +59,7 @@ export async function GET(request, { params }) {
     trading_name: settings.trading_name || '',
     logo_url: settings.logo_url || '',
     gst_rate: Number(settings.gst_rate) || 15,
+    parking_note_shown: job.parking_note_shown ?? true,
     items: (job.job_items || []).map((item) => ({
       id: item.id,
       type: item.type,
