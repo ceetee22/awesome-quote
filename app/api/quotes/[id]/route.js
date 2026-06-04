@@ -66,6 +66,7 @@ export async function GET(request, { params }) {
       fault_label: item.fault_label,
       description: item.description,
       labour_hours: Number(item.labour_hours) || 0,
+      photos: (item.photos || []).filter((p) => p.type === 'before'),
       parts: (item.job_item_parts || []).map((p) => ({
         id: p.id,
         name: p.name,

@@ -4,7 +4,9 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { v4 as uuidv4 } from 'uuid'
 import { useJob } from '@/lib/job-context'
+import { useSettings } from '@/lib/settings-context'
 import { getParts } from '@/lib/db'
+import PhotoCapture from '@/components/PhotoCapture'
 import {
   JOINERY_TYPE_LABELS,
   FITS_VALUES,
@@ -145,8 +147,11 @@ function TagPill({ label, selected, onToggle, colour = 'green' }) {
 export default function CustomItemPage() {
   const params = useParams()
   const router = useRouter()
-  const { addItem } = useJob()
+  const { currentJob, addItem } = useJob()
+  const { settings } = useSettings()
 
+  const [itemId] = useState(() => uuidv4())
+  const [beforePhotos, setBeforePhotos] = useState([])
   const [description, setDescription] = useState('')
   const [internalNotes, setInternalNotes] = useState('')
   const [parts, setParts] = useState([])
@@ -226,15 +231,17 @@ export default function CustomItemPage() {
 
   function handleAddToJob() {
     addItem({
+      id: itemId,
       type: 'custom',
       description: description.trim(),
       internal_notes: internalNotes.trim(),
       parts: parts.map(({ _key, ...rest }) => rest),
       labour_hours: labourHours,
-      hourly_rate: 95,
+      hourly_rate: settings?.hourly_labour_rate || 95,
       save_to_catalogue: saveToCalogue,
       fits: selectedFits,
       fixes: selectedFixes,
+      photos: beforePhotos,
     })
     router.push(`/jobs/${params.id}/items`)
   }
@@ -390,6 +397,17 @@ export default function CustomItemPage() {
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* Before photos */}
+            <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg">
+              <PhotoCapture
+                label="Before photos"
+                buttonLabel="Add before photo"
+                photos={beforePhotos}
+                onChange={setBeforePhotos}
+                uploadOpts={{ jobId: currentJob?.id, itemId, type: 'before' }}
+              />
             </div>
 
             {/* Labour */}

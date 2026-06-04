@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { useJob } from '@/lib/job-context'
 import { useSettings } from '@/lib/settings-context'
 import { getParts } from '@/lib/db'
+import PhotoCapture from '@/components/PhotoCapture'
 import { PART_CATEGORY } from '@/lib/constants'
 import { formatCurrency } from '@/lib/pricing'
 import Button from '@/components/Button'
@@ -111,6 +112,9 @@ export default function RubberEstimatorPage() {
   const bands = settings.window_size_bands || []
   const hourlyRate = settings.hourly_labour_rate || 85
 
+  const [itemId] = useState(() => uuidv4())
+  const [beforePhotos, setBeforePhotos] = useState([])
+
   const [step, setStep] = useState('pick') // pick | estimate
   const [selectedRubber, setSelectedRubber] = useState(null)
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -185,9 +189,11 @@ export default function RubberEstimatorPage() {
       .join(', ')
 
     addItem({
+      id: itemId,
       type: 'custom',
       description: `Window rubber replacement - ${totalWindows} window${totalWindows !== 1 ? 's' : ''}, ${orderMetres}m`,
       internal_notes: internalNotes,
+      photos: beforePhotos,
       parts: selectedRubber
         ? [
             {
@@ -374,6 +380,17 @@ export default function RubberEstimatorPage() {
                   ))}
                 </div>
               )}
+
+              {/* Before photos */}
+              <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg">
+                <PhotoCapture
+                  label="Before photos"
+                  buttonLabel="Add before photo"
+                  photos={beforePhotos}
+                  onChange={setBeforePhotos}
+                  uploadOpts={{ jobId: currentJob?.id, itemId, type: 'before' }}
+                />
+              </div>
 
               {/* Totals summary */}
               {groups.length > 0 && (

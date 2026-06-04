@@ -307,6 +307,51 @@ export default function AcceptPage() {
           </div>
         </div>
 
+        {/* Before photos gallery */}
+        {(() => {
+          const beforePhotos = (quote.items || []).flatMap((item) => item.photos || [])
+          if (beforePhotos.length === 0) return null
+          return (
+            <div style={{
+              background: C.white, border: `1px solid ${C.border}`,
+              borderRadius: 16, padding: 20, marginBottom: 16,
+            }}>
+              <p style={{ fontWeight: 500, fontSize: 17, color: C.ink, margin: '0 0 16px' }}>
+                Photos of the issue
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 10 }}>
+                {beforePhotos.map((photo, idx) => (
+                  <div key={photo.id || idx} style={{ borderRadius: 10, overflow: 'hidden', background: C.surface }}>
+                    <img
+                      src={photo.url}
+                      alt={photo.caption || ''}
+                      style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }}
+                      loading="lazy"
+                    />
+                    {photo.caption && (
+                      <p style={{ margin: '6px 8px 8px', fontSize: 13, color: C.muted }}>{photo.caption}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <a
+                href={`/done/${id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  marginTop: 16, minHeight: 48, padding: '0 20px',
+                  border: `2px solid ${C.green}`, borderRadius: 10,
+                  color: C.green, fontWeight: 500, fontSize: 15,
+                  background: 'transparent', cursor: 'pointer', textDecoration: 'none',
+                }}
+              >
+                View photos
+              </a>
+            </div>
+          )
+        })()}
+
         {/* Accept section */}
         {state === 'confirming' ? (
           <div style={{

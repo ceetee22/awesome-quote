@@ -12,10 +12,12 @@ import {
 } from '@/lib/constants'
 import { formatCurrency, calcGst } from '@/lib/pricing'
 import { generateQuotePdf, downloadBlob } from '@/lib/generate-quote-pdf'
+import { uploadPhoto } from '@/lib/upload-photo'
 import Button from '@/components/Button'
 import StatusBadge from '@/components/StatusBadge'
 import DurationPresets from '@/components/DurationPresets'
 import ConfirmModal from '@/components/ConfirmModal'
+import PhotoCapture from '@/components/PhotoCapture'
 
 function ChevronRightIcon() {
   return (
@@ -150,6 +152,37 @@ export default function JobDetailPage() {
   const [scheduleOpen, setScheduleOpen]           = useState(false)
   const [rescheduleMsg, setRescheduleMsg]         = useState('')
 
+  const [afterPhotos, setAfterPhotos] = useState(currentJob?.after_photos || [])
+
+  function handleAfterPhotosChange(photos) {
+    setAfterPhotos(photos)
+    setCurrentJob((prev) => ({ ...prev, after_photos: photos }))
+  }
+
+  const allBeforePhotos = (currentJob?.items || []).flatMap((item) => (item.photos || []).filter((p) => p.type === 'before'))
+
+  async function handleDownloadPhotos() {
+    const photos = [
+      ...allBeforePhotos.map((p, i) => ({ url: p.url, filename: `before-${i + 1}.jpg` })),
+      ...(currentJob?.after_photos || []).map((p, i) => ({ url: p.url, filename: `after-${i + 1}.jpg` })),
+    ]
+    for (const photo of photos) {
+      try {
+        const res = await fetch(photo.url)
+        const blob = await res.blob()
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = photo.filename
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+        await new Promise((r) => setTimeout(r, 150))
+      } catch { /* skip failed downloads */ }
+    }
+  }
+
   const [xeroModalOpen, setXeroModalOpen]         = useState(false)
   const [resendModalOpen, setResendModalOpen]     = useState(false)
   const [completeModalOpen, setCompleteModalOpen] = useState(false)
@@ -280,12 +313,14 @@ export default function JobDetailPage() {
       .reduce((s, p) => s + p.sell_price * p.qty, 0)
     const sub = pts + lh * hr + cf
     const g   = calcGst(sub, settings.gst_rate)
+    const hasBeforePhotos = allBeforePhotos.length > 0
     try {
       const blob = await generateQuotePdf({
         job: currentJob, settings,
         labourHours: lh, calloutFee: cf, hourlyRate: hr,
         subtotal: sub, gst: g, total: sub + g,
         acceptanceUrl: `https://awesome-quote.vercel.app/accept/${currentJob.id}`,
+        photosUrl: hasBeforePhotos ? `https://awesome-quote.vercel.app/done/${currentJob.id}` : null,
       })
       const safeName = (currentJob.customer_name || 'quote')
         .replace(/[^a-z0-9]/gi, '-').toLowerCase()
@@ -430,6 +465,28 @@ export default function JobDetailPage() {
     </div>
   )
 
+  const afterPhotosCard = (
+    <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg">
+      <PhotoCapture
+        label="After photos"
+        buttonLabel="Add after photo"
+        photos={afterPhotos}
+        onChange={handleAfterPhotosChange}
+        uploadOpts={{ jobId: currentJob.id, type: 'after' }}
+      />
+      {afterPhotos.length > 0 && (
+        <p className="text-caption text-aq-muted mt-aq-md">
+          Share with customer: <a
+            href={`/done/${currentJob.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-aq-green underline"
+          >before and after page</a>
+        </p>
+      )}
+    </div>
+  )
+
   const showTracker = ['accepted', 'ordered', 'scheduled', 'completed', 'invoiced'].includes(status)
   const trackerCard = (
     <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg">
@@ -560,6 +617,7 @@ export default function JobDetailPage() {
     <>
       {quoteSummaryCard}
       {profitCard}
+      {afterPhotosCard}
 
       <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg">
         <h2 className="text-section font-medium text-aq-ink mb-aq-md">Next steps</h2>
@@ -667,6 +725,7 @@ export default function JobDetailPage() {
 
       {quoteSummaryCard}
       {profitCard}
+      {afterPhotosCard}
       {trackerCard}
     </>
   )
@@ -711,6 +770,7 @@ export default function JobDetailPage() {
 
       {quoteSummaryCard}
       {profitCard}
+      {afterPhotosCard}
 
       <div className="flex flex-col gap-aq-sm">
         {status === 'completed' && (
@@ -721,6 +781,11 @@ export default function JobDetailPage() {
         <Button variant="secondary" fullWidth onClick={handleDownloadPdf}>
           Download PDF
         </Button>
+        {(allBeforePhotos.length > 0 || afterPhotos.length > 0) && (
+          <Button variant="secondary" fullWidth onClick={handleDownloadPhotos}>
+            Download photos
+          </Button>
+        )}
       </div>
 
       {trackerCard}

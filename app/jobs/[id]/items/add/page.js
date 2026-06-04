@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
+import { v4 as uuidv4 } from 'uuid'
 import {
   JOINERY_TYPE_LABELS,
   FAULT_OPTIONS,
@@ -10,10 +11,12 @@ import {
 } from '@/lib/constants'
 import { getPartsByFitsAndFixes, getParts } from '@/lib/db'
 import { useJob } from '@/lib/job-context'
+import { useSettings } from '@/lib/settings-context'
 import { formatCurrency } from '@/lib/pricing'
 import Button from '@/components/Button'
 import BackButton from '@/components/BackButton'
 import Stepper from '@/components/Stepper'
+import PhotoCapture from '@/components/PhotoCapture'
 
 function PartPhoto({ name }) {
   return (
@@ -78,7 +81,11 @@ const FILTER_CATEGORIES = [
 export default function AddItemPage() {
   const params = useParams()
   const router = useRouter()
-  const { addItem } = useJob()
+  const { currentJob, addItem } = useJob()
+  const { settings } = useSettings()
+
+  const [itemId] = useState(() => uuidv4())
+  const [beforePhotos, setBeforePhotos] = useState([])
 
   const [step, setStep] = useState('type')
   const [joineryType, setJoineryType] = useState(null)
@@ -174,6 +181,7 @@ export default function AddItemPage() {
       }))
 
     addItem({
+      id: itemId,
       type: 'diagnosed',
       joinery_type: joineryType,
       joinery_type_label: JOINERY_TYPE_LABELS[joineryType],
@@ -181,7 +189,8 @@ export default function AddItemPage() {
       fault_label: faultLabel,
       parts: chosenParts,
       labour_hours: 0,
-      hourly_rate: 95,
+      hourly_rate: settings?.hourly_labour_rate || 95,
+      photos: beforePhotos,
     })
 
     router.push(`/jobs/${params.id}/items`)
@@ -436,6 +445,19 @@ export default function AddItemPage() {
                 </div>
               </>
             )}
+          </div>
+        )}
+
+        {/* Before photos — shown on step 3 after parts are loaded */}
+        {step === 'parts' && !loadingParts && (
+          <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg mt-aq-lg">
+            <PhotoCapture
+              label="Before photos"
+              buttonLabel="Add before photo"
+              photos={beforePhotos}
+              onChange={setBeforePhotos}
+              uploadOpts={{ jobId: currentJob?.id, itemId, type: 'before' }}
+            />
           </div>
         )}
 
