@@ -467,7 +467,7 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div>
-                  <label htmlFor="markup-pct" className={labelClass}>Default parts markup</label>
+                  <label htmlFor="markup-pct" className={labelClass}>Markup on custom parts</label>
                   <SuffixInput
                     id="markup-pct"
                     suffix="%"
@@ -475,6 +475,9 @@ export default function SettingsPage() {
                     onChange={(e) => setField('default_markup_pct', e.target.value)}
                     placeholder="50"
                   />
+                  <p className="text-caption text-aq-muted mt-aq-xs">
+                    Only used for parts you add by hand that have no retail price. Catalogue parts are already priced from their retail price.
+                  </p>
                 </div>
                 <div>
                   <label htmlFor="gst-rate" className={labelClass}>GST rate</label>

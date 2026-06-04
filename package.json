@@ -1,6 +1,6 @@
 {
   "name": "awesome-quote",
-  "version": "0.13.2",
+  "version": "0.13.3",
   "description": "Mobile-first PWA for NZ joinery repair quoting",
   "main": "index.js",
   "scripts": {
