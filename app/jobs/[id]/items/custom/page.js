@@ -363,13 +363,18 @@ export default function CustomItemPage() {
                   </Button>
                 ) : (
                   <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg flex flex-col gap-aq-sm">
-                    <input
-                      type="text"
-                      value={manualName}
-                      onChange={(e) => setManualName(e.target.value)}
-                      placeholder="Part name"
-                      className={inputClass}
-                    />
+                    <div>
+                      <input
+                        type="text"
+                        value={manualName}
+                        onChange={(e) => setManualName(e.target.value)}
+                        placeholder="Part name"
+                        className={inputClass}
+                      />
+                      <p className="text-caption text-aq-muted mt-aq-sm">
+                        Tip: leave supplier codes out of the part name. The customer sees this name on the quote.
+                      </p>
+                    </div>
                     <input
                       type="number"
                       value={manualPrice}

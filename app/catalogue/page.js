@@ -222,6 +222,11 @@ function AddPartForm({ onSave, onClose }) {
               placeholder="e.g. Sliding door roller pair"
               className={inputClass}
             />
+            {sku.trim() && name.toLowerCase().includes(sku.trim().toLowerCase()) && (
+              <p className="text-caption text-aq-muted mt-aq-sm">
+                Tip: leave supplier codes out of the part name. The customer sees this name on the quote.
+              </p>
+            )}
           </div>
 
           <div>
