@@ -287,7 +287,7 @@ function SuppliersSection() {
 
 export default function SettingsPage() {
   const router = useRouter()
-  const { settings, updateSettings } = useSettings()
+  const { settings, updateSettings, settingsLoaded } = useSettings()
   const [signOutModalOpen, setSignOutModalOpen] = useState(false)
 
   async function handleSignOut() {
@@ -330,6 +330,34 @@ export default function SettingsPage() {
   const [editingBandIdx, setEditingBandIdx] = useState(null)
   const [editBandState, setEditBandState] = useState(null)
   const [deleteBandIdx, setDeleteBandIdx] = useState(null)
+
+  // Sync form fields once when DB settings land (prevents stale DEFAULT_STATE overwriting DB values)
+  useEffect(() => {
+    if (!settingsLoaded) return
+    setForm({
+      business_name: settings.business_name || '',
+      trading_name: settings.trading_name || '',
+      legal_company_name: settings.legal_company_name || '',
+      business_tagline: settings.business_tagline || '',
+      contact_person_name: settings.contact_person_name || '',
+      business_phone: settings.business_phone || '',
+      business_email: settings.business_email || '',
+      home_base_address: settings.home_base_address || '',
+      hourly_labour_rate: String(settings.hourly_labour_rate || 85),
+      default_markup_pct: String(settings.default_markup_pct || 50),
+      gst_rate: String(settings.gst_rate || 15),
+      gst_number: settings.gst_number || '',
+      bank_account_name: settings.bank_account_name || '',
+      bank_name: settings.bank_name || '',
+      bank_account_number: settings.bank_account_number || '',
+      payment_terms: settings.payment_terms || 'Payment due on completion of work.',
+      terms_and_conditions: settings.terms_and_conditions || '',
+    })
+    setZones(settings.callout_zones || [])
+    setRubberWastePct(String(settings.rubber_waste_pct ?? 10))
+    setBands(settings.window_size_bands || [])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settingsLoaded])
 
   function setField(key, value) {
     setForm((prev) => ({ ...prev, [key]: value }))

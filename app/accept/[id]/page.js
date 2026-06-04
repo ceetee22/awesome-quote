@@ -64,7 +64,7 @@ function BusinessLogo({ logoUrl, bizName }) {
       <img
         src={logoUrl}
         alt={bizName}
-        style={{ maxHeight: 40, maxWidth: 120, objectFit: 'contain', flexShrink: 0 }}
+        style={{ maxHeight: 40, maxWidth: 120, objectFit: 'contain', flexShrink: 0, background: '#ffffff' }}
       />
     )
   }
