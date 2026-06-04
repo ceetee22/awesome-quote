@@ -184,7 +184,6 @@ export default function JobDetailPage() {
   }
 
   const [xeroModalOpen, setXeroModalOpen]         = useState(false)
-  const [resendModalOpen, setResendModalOpen]     = useState(false)
   const [completeModalOpen, setCompleteModalOpen] = useState(false)
   const [invoiceModalOpen, setInvoiceModalOpen]   = useState(false)
   const [declineModalOpen, setDeclineModalOpen]   = useState(false)
@@ -321,6 +320,7 @@ export default function JobDetailPage() {
         subtotal: sub, gst: g, total: sub + g,
         acceptanceUrl: `https://awesome-quote.vercel.app/accept/${currentJob.id}`,
         photosUrl: hasBeforePhotos ? `https://awesome-quote.vercel.app/done/${currentJob.id}` : null,
+        logoUrl: settings.logo_url || null,
       })
       const safeName = (currentJob.customer_name || 'quote')
         .replace(/[^a-z0-9]/gi, '-').toLowerCase()
@@ -596,14 +596,11 @@ export default function JobDetailPage() {
 
       <div className="flex flex-col gap-aq-sm">
         <Button variant="primary" fullWidth onClick={handleDownloadPdf}>
-          Download PDF
+          Send quote
         </Button>
         <Button variant="secondary" fullWidth
           onClick={() => router.push(`/jobs/${params.id}/quote`)}>
           Edit quote
-        </Button>
-        <Button variant="secondary" fullWidth onClick={() => setResendModalOpen(true)}>
-          Resend quote
         </Button>
         <Button variant="destructive" fullWidth onClick={() => setDeclineModalOpen(true)}>
           Mark as declined
@@ -844,15 +841,6 @@ export default function JobDetailPage() {
         cancelLabel="Not yet"
         onConfirm={handleXeroConfirm}
         onCancel={() => setXeroModalOpen(false)}
-      />
-
-      <ConfirmModal
-        open={resendModalOpen}
-        question={`Download the quote PDF to resend to ${currentJob.customer_name}.`}
-        confirmLabel="Yes, resend"
-        cancelLabel="Not yet"
-        onConfirm={async () => { setResendModalOpen(false); await handleDownloadPdf() }}
-        onCancel={() => setResendModalOpen(false)}
       />
 
       <ConfirmModal

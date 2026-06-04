@@ -163,10 +163,13 @@ export default function CustomItemPage() {
   // Catalogue search overlay
   const [searchOpen, setSearchOpen] = useState(false)
 
+  const defaultMarkupPct = settings?.default_markup_pct ?? 50
+
   // Manual part inline form
   const [showManualForm, setShowManualForm] = useState(false)
   const [manualName, setManualName] = useState('')
-  const [manualPrice, setManualPrice] = useState('')
+  const [manualCost, setManualCost] = useState('')
+  const [manualSell, setManualSell] = useState('')
 
   function addCataloguePart(part) {
     setParts((prev) => [
@@ -196,14 +199,15 @@ export default function CustomItemPage() {
         part_id: null,
         name: manualName.trim(),
         sku: '',
-        sell_price: parseFloat(manualPrice) || 0,
-        cost_price: parseFloat(manualPrice) || 0,
+        sell_price: parseFloat(manualSell) || 0,
+        cost_price: parseFloat(manualCost) || 0,
         qty: 1,
         unit: 'each',
       },
     ])
     setManualName('')
-    setManualPrice('')
+    setManualCost('')
+    setManualSell('')
     setShowManualForm(false)
   }
 
@@ -372,16 +376,45 @@ export default function CustomItemPage() {
                         className={inputClass}
                       />
                       <p className="text-caption text-aq-muted mt-aq-sm">
-                        Tip: leave supplier codes out of the part name. The customer sees this name on the quote.
+                        The customer sees this name on the quote. Leave supplier codes out.
                       </p>
                     </div>
-                    <input
-                      type="number"
-                      value={manualPrice}
-                      onChange={(e) => setManualPrice(e.target.value)}
-                      placeholder="Price (sell)"
-                      className={inputClass}
-                    />
+                    <div className="flex gap-aq-sm">
+                      <div className="flex-1">
+                        <p className="text-caption text-aq-muted mb-aq-xs">Your cost</p>
+                        <div className="flex items-stretch border border-aq-border rounded-aq-md overflow-hidden min-h-tap focus-within:border-aq-green transition-colors duration-150 bg-white">
+                          <span className="px-3 flex items-center text-body text-aq-muted bg-aq-surface border-r border-aq-border shrink-0">$</span>
+                          <input
+                            type="number"
+                            value={manualCost}
+                            onChange={(e) => {
+                              const c = e.target.value
+                              setManualCost(c)
+                              const cost = parseFloat(c) || 0
+                              setManualSell((cost * (1 + defaultMarkupPct / 100)).toFixed(2))
+                            }}
+                            placeholder="0.00"
+                            className="flex-1 px-3 text-body text-aq-ink bg-white focus:outline-none min-w-0"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-caption text-aq-muted mb-aq-xs">Sell price ({defaultMarkupPct}% markup)</p>
+                        <div className="flex items-stretch border border-aq-border rounded-aq-md overflow-hidden min-h-tap focus-within:border-aq-green transition-colors duration-150 bg-white">
+                          <span className="px-3 flex items-center text-body text-aq-muted bg-aq-surface border-r border-aq-border shrink-0">$</span>
+                          <input
+                            type="number"
+                            value={manualSell}
+                            onChange={(e) => setManualSell(e.target.value)}
+                            placeholder="0.00"
+                            className="flex-1 px-3 text-body text-aq-ink bg-white focus:outline-none min-w-0"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-caption text-aq-muted">
+                      Sell price is auto-calculated from your cost and markup setting. You can override it.
+                    </p>
                     <div className="flex gap-aq-sm">
                       <Button
                         variant="primary"

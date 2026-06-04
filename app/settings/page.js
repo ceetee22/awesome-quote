@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { v4 as uuidv4 } from 'uuid'
 import { useSettings } from '@/lib/settings-context'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
+import { compressImage } from '@/lib/compress-image'
 import {
   getSuppliers,
   createSupplier,
@@ -296,8 +297,14 @@ export default function SettingsPage() {
     router.refresh()
   }
 
+  const [logoUploading, setLogoUploading] = useState(false)
+
   const [form, setForm] = useState({
     business_name: settings.business_name,
+    trading_name: settings.trading_name || '',
+    legal_company_name: settings.legal_company_name || '',
+    business_tagline: settings.business_tagline || '',
+    contact_person_name: settings.contact_person_name || '',
     business_phone: settings.business_phone,
     business_email: settings.business_email,
     home_base_address: settings.home_base_address,
@@ -326,6 +333,37 @@ export default function SettingsPage() {
 
   function setField(key, value) {
     setForm((prev) => ({ ...prev, [key]: value }))
+  }
+
+  async function handleLogoUpload(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setLogoUploading(true)
+    try {
+      const compressed = await compressImage(file)
+      const supabase = createSupabaseBrowserClient()
+      let url
+      if (!supabase) {
+        url = URL.createObjectURL(compressed)
+      } else {
+        const path = `branding/logo-${uuidv4()}.jpg`
+        const { error } = await supabase.storage
+          .from('job-photos')
+          .upload(path, compressed, { contentType: 'image/jpeg', upsert: false })
+        if (error) throw error
+        const { data } = supabase.storage.from('job-photos').getPublicUrl(path)
+        url = data.publicUrl
+      }
+      updateSettings({ logo_url: url })
+    } catch (err) {
+      console.error('Logo upload failed:', err)
+    } finally {
+      setLogoUploading(false)
+    }
+  }
+
+  function handleRemoveLogo() {
+    updateSettings({ logo_url: '' })
   }
 
   function startEditZone(zone) {
@@ -374,6 +412,10 @@ export default function SettingsPage() {
   function handleSave() {
     updateSettings({
       business_name: form.business_name,
+      trading_name: form.trading_name,
+      legal_company_name: form.legal_company_name,
+      business_tagline: form.business_tagline,
+      contact_person_name: form.contact_person_name,
       business_phone: form.business_phone,
       business_email: form.business_email,
       home_base_address: form.home_base_address,
@@ -422,6 +464,53 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div>
+                  <label htmlFor="trading-name" className={labelClass}>Trading name</label>
+                  <input
+                    id="trading-name"
+                    type="text"
+                    value={form.trading_name}
+                    onChange={(e) => setField('trading_name', e.target.value)}
+                    placeholder="Name shown on quotes and invoices"
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="legal-name" className={labelClass}>Legal company name</label>
+                  <input
+                    id="legal-name"
+                    type="text"
+                    value={form.legal_company_name}
+                    onChange={(e) => setField('legal_company_name', e.target.value)}
+                    placeholder="e.g. Smith Holdings Ltd"
+                    className={inputClass}
+                  />
+                  <p className="text-caption text-aq-muted mt-aq-xs">
+                    If set alongside a trading name, quotes show "[Legal name] trading as [Trading name]" in the payment section.
+                  </p>
+                </div>
+                <div>
+                  <label htmlFor="tagline" className={labelClass}>Tagline</label>
+                  <input
+                    id="tagline"
+                    type="text"
+                    value={form.business_tagline}
+                    onChange={(e) => setField('business_tagline', e.target.value)}
+                    placeholder="e.g. Aluminium joinery repair specialists"
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="contact-person" className={labelClass}>Contact person</label>
+                  <input
+                    id="contact-person"
+                    type="text"
+                    value={form.contact_person_name}
+                    onChange={(e) => setField('contact_person_name', e.target.value)}
+                    placeholder="Your name"
+                    className={inputClass}
+                  />
+                </div>
+                <div>
                   <label htmlFor="biz-phone" className={labelClass}>Phone</label>
                   <input
                     id="biz-phone"
@@ -445,9 +534,31 @@ export default function SettingsPage() {
                 </div>
                 <div>
                   <p className={labelClass}>Logo</p>
-                  <div className="border-2 border-dashed border-aq-border rounded-aq-xl flex items-center justify-center min-h-[96px] bg-aq-surface cursor-not-allowed">
-                    <p className="text-secondary text-aq-subtle">Tap to upload logo</p>
-                  </div>
+                  {settings.logo_url ? (
+                    <div className="flex items-start gap-aq-md">
+                      <div className="w-20 h-14 rounded-aq-lg border border-aq-border bg-aq-surface flex items-center justify-center overflow-hidden shrink-0">
+                        <img src={settings.logo_url} alt="Business logo" className="max-w-full max-h-full object-contain p-1" />
+                      </div>
+                      <div className="flex flex-col gap-aq-sm">
+                        <label className="cursor-pointer">
+                          <div className="inline-flex items-center justify-center min-h-tap px-aq-lg border border-aq-border rounded-aq-lg bg-white text-secondary font-medium text-aq-ink hover:bg-aq-surface transition-colors duration-150">
+                            Replace logo
+                          </div>
+                          <input type="file" accept="image/*" className="sr-only" onChange={handleLogoUpload} />
+                        </label>
+                        <Button variant="destructive" onClick={handleRemoveLogo}>Remove logo</Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <label className="cursor-pointer block">
+                      <div className={`border-2 border-dashed rounded-aq-xl flex items-center justify-center min-h-[80px] bg-aq-surface transition-colors duration-150 ${logoUploading ? 'border-aq-green opacity-60' : 'border-aq-border hover:border-aq-green'}`}>
+                        <p className="text-secondary text-aq-subtle select-none">
+                          {logoUploading ? 'Uploading...' : 'Tap to upload logo'}
+                        </p>
+                      </div>
+                      <input type="file" accept="image/*" className="sr-only" onChange={handleLogoUpload} disabled={logoUploading} />
+                    </label>
+                  )}
                 </div>
               </div>
             </div>
@@ -476,7 +587,7 @@ export default function SettingsPage() {
                     placeholder="50"
                   />
                   <p className="text-caption text-aq-muted mt-aq-xs">
-                    Only used for parts you add by hand that have no retail price. Catalogue parts are already priced from their retail price.
+                    Applied to the cost you enter when adding a manual part, to suggest a sell price. You can override the sell price.
                   </p>
                 </div>
                 <div>
@@ -700,13 +811,13 @@ export default function SettingsPage() {
                 </div>
                 <div>
                   <label htmlFor="payment-terms" className={labelClass}>Payment terms</label>
-                  <input
+                  <textarea
                     id="payment-terms"
-                    type="text"
+                    rows={3}
                     value={form.payment_terms}
                     onChange={(e) => setField('payment_terms', e.target.value)}
-                    placeholder="Payment due on completion of work."
-                    className={inputClass}
+                    placeholder="e.g. Payment due within 7 days. Late payments may incur interest at 2% per month."
+                    className="w-full bg-white border border-aq-border rounded-aq-md px-4 py-3 text-body text-aq-ink placeholder:text-aq-subtle focus:outline-none focus:border-aq-green transition-colors duration-150 resize-y"
                   />
                 </div>
                 <div>

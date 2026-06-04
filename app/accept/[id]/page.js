@@ -58,6 +58,19 @@ function AQMonogram() {
   )
 }
 
+function BusinessLogo({ logoUrl, bizName }) {
+  if (logoUrl) {
+    return (
+      <img
+        src={logoUrl}
+        alt={bizName}
+        style={{ maxHeight: 40, maxWidth: 120, objectFit: 'contain', flexShrink: 0 }}
+      />
+    )
+  }
+  return <BusinessLogo logoUrl={quote?.logo_url} bizName={bizName} />
+}
+
 // Totals computed from quote data
 function computeTotals(quote) {
   const partsTotal = (quote.items || [])
@@ -145,7 +158,7 @@ export default function AcceptPage() {
     )
   }
 
-  const bizName = quote?.business_name || 'Awesome Building Services'
+  const bizName = quote?.trading_name || quote?.business_name || 'Awesome Building Services'
   const totals = quote ? computeTotals(quote) : null
 
   // ── ALREADY ACCEPTED ────────────────────────────────────────────────────────
@@ -154,7 +167,7 @@ export default function AcceptPage() {
       <div style={wrap}>
         <div style={{ ...inner, textAlign: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32 }}>
-            <AQMonogram />
+            <BusinessLogo logoUrl={quote?.logo_url} bizName={bizName} />
             <span style={{ fontWeight: 500, fontSize: 16, color: C.ink }}>{bizName}</span>
           </div>
           <GreenTick />
@@ -175,7 +188,7 @@ export default function AcceptPage() {
       <div style={wrap}>
         <div style={{ ...inner, textAlign: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32 }}>
-            <AQMonogram />
+            <BusinessLogo logoUrl={quote?.logo_url} bizName={bizName} />
             <span style={{ fontWeight: 500, fontSize: 16, color: C.ink }}>{bizName}</span>
           </div>
           <GreenTick />
@@ -199,7 +212,7 @@ export default function AcceptPage() {
 
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 }}>
-          <AQMonogram />
+          <BusinessLogo logoUrl={quote?.logo_url} bizName={bizName} />
           <div>
             <p style={{ fontWeight: 500, fontSize: 16, color: C.ink, margin: 0 }}>{bizName}</p>
           </div>

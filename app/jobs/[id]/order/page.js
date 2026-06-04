@@ -107,6 +107,7 @@ export default function OrderPage() {
         orderLines: enabledLines,
         collectionMethod,
         deliveryAddress: resolvedAddress,
+        logoUrl: settings.logo_url || null,
       })
       const poNumber = `PO-${(currentJob.id || '').substring(0, 8).toUpperCase()}`
       downloadBlob(blob, `${poNumber}.pdf`)

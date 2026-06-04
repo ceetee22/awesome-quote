@@ -142,6 +142,7 @@ export default function QuotePage() {
         gst,
         total,
         acceptanceUrl: `https://awesome-quote.vercel.app/accept/${params.id}`,
+        logoUrl: settings.logo_url || null,
       })
       const safeName = (currentJob.customer_name || 'quote')
         .replace(/[^a-z0-9]/gi, '-')
@@ -174,6 +175,7 @@ export default function QuotePage() {
         acceptanceUrl: `https://awesome-quote.vercel.app/accept/${params.id}`,
         quoteVersion: newVersion,
         isRevision: true,
+        logoUrl: settings.logo_url || null,
       })
       const safeName = (currentJob.customer_name || 'quote')
         .replace(/[^a-z0-9]/gi, '-')

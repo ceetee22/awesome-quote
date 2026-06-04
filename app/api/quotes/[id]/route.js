@@ -28,7 +28,7 @@ export async function GET(request, { params }) {
       .single(),
     supabase
       .from('settings')
-      .select('business_name, gst_rate')
+      .select('business_name, gst_rate, logo_url, trading_name')
       .eq('id', 1)
       .single(),
   ])
@@ -56,6 +56,8 @@ export async function GET(request, { params }) {
     labour_hours: Number(job.labour_hours) || 0,
     created_at: job.created_at,
     business_name: settings.business_name || 'Awesome Building Services',
+    trading_name: settings.trading_name || '',
+    logo_url: settings.logo_url || '',
     gst_rate: Number(settings.gst_rate) || 15,
     items: (job.job_items || []).map((item) => ({
       id: item.id,
