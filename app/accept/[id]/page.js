@@ -242,7 +242,6 @@ export default function AcceptPage() {
 
           {(quote.items || []).map((item) => {
             const partsCost = (item.parts || []).reduce((s, p) => s + p.sell_price * p.qty, 0)
-            const partsCount = (item.parts || []).length
             let label
             if (item.type === 'diagnosed') {
               label = [item.joinery_type_label || item.joinery_type, item.fault_label || item.fault]
@@ -252,15 +251,10 @@ export default function AcceptPage() {
             }
             return (
               <div key={item.id} style={{
-                display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                 padding: '10px 0', borderBottom: `1px solid ${C.border}`,
               }}>
-                <div>
-                  <p style={{ margin: 0, fontWeight: 500, fontSize: 15, color: C.ink }}>{label}</p>
-                  <p style={{ margin: '2px 0 0', fontSize: 13, color: C.muted }}>
-                    {partsCount} {partsCount === 1 ? 'part' : 'parts'}
-                  </p>
-                </div>
+                <p style={{ margin: 0, fontWeight: 500, fontSize: 15, color: C.ink }}>{label}</p>
                 <span style={{ fontWeight: 500, fontSize: 15, color: C.ink, whiteSpace: 'nowrap' }}>
                   {fmtCurrency(partsCost)}
                 </span>
@@ -268,31 +262,14 @@ export default function AcceptPage() {
             )
           })}
 
-          {totals.labourTotal > 0 && (
+          {(totals.labourTotal > 0 || totals.calloutFee > 0) && (
             <div style={{
-              display: 'flex', justifyContent: 'space-between',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
               padding: '10px 0', borderBottom: `1px solid ${C.border}`,
             }}>
-              <div>
-                <p style={{ margin: 0, fontWeight: 500, fontSize: 15, color: C.ink }}>Labour</p>
-                <p style={{ margin: '2px 0 0', fontSize: 13, color: C.muted }}>
-                  {quote.labour_hours} hr at {fmtCurrency(quote.hourly_rate)}/hr
-                </p>
-              </div>
+              <p style={{ margin: 0, fontWeight: 500, fontSize: 15, color: C.ink }}>Labour and callout</p>
               <span style={{ fontWeight: 500, fontSize: 15, color: C.ink }}>
-                {fmtCurrency(totals.labourTotal)}
-              </span>
-            </div>
-          )}
-
-          {totals.calloutFee > 0 && (
-            <div style={{
-              display: 'flex', justifyContent: 'space-between',
-              padding: '10px 0', borderBottom: `1px solid ${C.border}`,
-            }}>
-              <p style={{ margin: 0, fontSize: 15, color: C.ink }}>Callout fee</p>
-              <span style={{ fontWeight: 500, fontSize: 15, color: C.ink }}>
-                {fmtCurrency(totals.calloutFee)}
+                {fmtCurrency(totals.labourTotal + totals.calloutFee)}
               </span>
             </div>
           )}
