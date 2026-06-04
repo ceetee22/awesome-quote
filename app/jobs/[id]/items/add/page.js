@@ -119,7 +119,8 @@ export default function AddItemPage() {
       setSearchQuery('')
       setSearchCategory(null)
     } else {
-      router.push(`/jobs/${params.id}/items`)
+      const hasItems = (currentJob?.items?.length ?? 0) > 0
+      router.push(hasItems ? `/jobs/${params.id}/items` : `/jobs/${params.id}`)
     }
   }
 
@@ -260,7 +261,7 @@ export default function AddItemPage() {
   // Page title / subtitle / back label
   let pageTitle = 'Add item'
   let pageSubtitle = null
-  let backLabel = 'Items'
+  let backLabel = (currentJob?.items?.length ?? 0) > 0 ? 'Items' : 'Customer'
   if (step === 'fault') {
     pageTitle = JOINERY_TYPE_LABELS[joineryType]
     backLabel = 'Add item'

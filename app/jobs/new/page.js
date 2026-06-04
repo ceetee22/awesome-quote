@@ -32,7 +32,7 @@ export default function NewJobPage() {
       customer_phone: phone.trim(),
       source,
     })
-    router.push(`/jobs/${job.id}/items`)
+    router.push(`/jobs/${job.id}/items/add`)
   }
 
   const canStart = name.trim().length > 0
