@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation'
 // Auth/public pages
 const HIDDEN_STARTS = ['/login', '/forgot-password', '/reset-password', '/accept']
 // Task-focused pages where the user should complete the flow, not navigate away
-const HIDDEN_INCLUDES = ['/items/add', '/items/custom', '/quote', '/order']
+const HIDDEN_INCLUDES = ['/items/add', '/items/custom', '/items/rubber', '/quote', '/order']
 
 const TABS = [
   {

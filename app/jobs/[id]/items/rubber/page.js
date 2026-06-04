@@ -118,76 +118,80 @@ export default function RubberEstimatorPage() {
   const [selectedRubber, setSelectedRubber] = useState(null)
   const [pickerOpen, setPickerOpen] = useState(false)
 
-  const [mode, setMode] = useState('band') // band | dims
-  const [selectedBandIdx, setSelectedBandIdx] = useState(0)
-  const [bandCount, setBandCount] = useState(1)
-  const [dimWidth, setDimWidth] = useState(1000)
-  const [dimHeight, setDimHeight] = useState(1200)
-  const [dimCount, setDimCount] = useState(1)
+  // Model B: one count per band index
+  const [bandCounts, setBandCounts] = useState({})
 
-  // Added groups: [{ id, label, count, perimeter_m, labour_min }]
-  const [groups, setGroups] = useState([])
+  // Odd-sized windows
+  const [oddGroups, setOddGroups] = useState([])
+  const [showOddForm, setShowOddForm] = useState(false)
+  const [oddWidth, setOddWidth] = useState(1000)
+  const [oddHeight, setOddHeight] = useState(1200)
+  const [oddCount, setOddCount] = useState(1)
 
-  function handleSelectRubber(part) {
-    setSelectedRubber(part)
-    setPickerOpen(false)
+  function setBandCount(idx, val) {
+    setBandCounts((prev) => ({ ...prev, [idx]: Math.max(0, val) }))
   }
 
-  function handleAddGroup() {
-    if (mode === 'band') {
-      const band = bands[selectedBandIdx]
-      if (!band) return
-      setGroups((prev) => [
-        ...prev,
-        {
-          id: uuidv4(),
-          label: band.name,
-          count: bandCount,
-          perimeter_m: band.perimeter_m,
-          labour_min: band.labour_min,
-        },
-      ])
-    } else {
-      const perimeterM = (2 * (dimWidth + dimHeight)) / 1000
-      setGroups((prev) => [
-        ...prev,
-        {
-          id: uuidv4(),
-          label: `${dimWidth} x ${dimHeight}mm`,
-          count: dimCount,
-          perimeter_m: parseFloat(perimeterM.toFixed(2)),
-          labour_min: 20,
-        },
-      ])
-    }
+  function handleAddOddGroup() {
+    const perimeterM = parseFloat(((2 * (oddWidth + oddHeight)) / 1000).toFixed(2))
+    setOddGroups((prev) => [
+      ...prev,
+      {
+        id: uuidv4(),
+        label: `${oddWidth} × ${oddHeight}mm`,
+        count: oddCount,
+        perimeter_m: perimeterM,
+        labour_min: 20,
+      },
+    ])
+    setShowOddForm(false)
+    setOddCount(1)
   }
 
-  function removeGroup(id) {
-    setGroups((prev) => prev.filter((g) => g.id !== id))
+  function removeOddGroup(id) {
+    setOddGroups((prev) => prev.filter((g) => g.id !== id))
   }
 
   const totals = useMemo(() => {
-    const totalWindows = groups.reduce((s, g) => s + g.count, 0)
-    const rawMetres = groups.reduce((s, g) => s + g.count * g.perimeter_m, 0)
-    const orderMetres = Math.ceil(rawMetres * (1 + wastePct / 100))
-    const partsCost = orderMetres * (selectedRubber?.sell_price || 0)
-    const totalLabourMin = groups.reduce((s, g) => s + g.count * g.labour_min, 0)
-    const labourHours = parseFloat((totalLabourMin / 60).toFixed(2))
-    const labourCost = labourHours * hourlyRate
-    const lineTotal = partsCost + labourCost
+    const bandWindows = bands.reduce((s, band, idx) => s + (bandCounts[idx] || 0), 0)
+    const bandMetres  = bands.reduce((s, band, idx) => s + (bandCounts[idx] || 0) * band.perimeter_m, 0)
+    const bandLabour  = bands.reduce((s, band, idx) => s + (bandCounts[idx] || 0) * band.labour_min, 0)
+
+    const oddWindows = oddGroups.reduce((s, g) => s + g.count, 0)
+    const oddMetres  = oddGroups.reduce((s, g) => s + g.count * g.perimeter_m, 0)
+    const oddLabour  = oddGroups.reduce((s, g) => s + g.count * g.labour_min, 0)
+
+    const totalWindows  = bandWindows + oddWindows
+    const rawMetres     = bandMetres + oddMetres
+    const orderMetres   = Math.ceil(rawMetres * (1 + wastePct / 100))
+    const partsCost     = orderMetres * (selectedRubber?.sell_price || 0)
+    const totalLabourMin = bandLabour + oddLabour
+    const labourHours   = parseFloat((totalLabourMin / 60).toFixed(2))
+    const labourCost    = labourHours * hourlyRate
+    const lineTotal     = partsCost + labourCost
     return { totalWindows, rawMetres, orderMetres, partsCost, labourHours, labourCost, lineTotal }
-  }, [groups, wastePct, selectedRubber, hourlyRate])
+  }, [bands, bandCounts, oddGroups, wastePct, selectedRubber, hourlyRate])
 
   function handleAddToJob() {
     const { totalWindows, orderMetres, labourHours } = totals
 
-    // Customer-facing: window count only, no metres, no product name
     const description = `Window rubber replacement - ${totalWindows} window${totalWindows !== 1 ? 's' : ''}`
 
-    // Operator-only: full detail including rubber product and metreage
-    const windowBreakdown = groups
+    const bandBreakdown = bands
+      .map((band, idx) => {
+        const count = bandCounts[idx] || 0
+        if (count === 0) return null
+        return `${count} x ${band.name} = ${(count * band.perimeter_m).toFixed(1)}m`
+      })
+      .filter(Boolean)
+      .join(', ')
+
+    const oddBreakdown = oddGroups
       .map((g) => `${g.count} x ${g.label} = ${(g.count * g.perimeter_m).toFixed(1)}m`)
       .join(', ')
+
+    const windowBreakdown = [bandBreakdown, oddBreakdown].filter(Boolean).join(', ')
+
     const internalNotes = [
       selectedRubber ? `Rubber: ${selectedRubber.name} (${selectedRubber.sku})` : null,
       `${orderMetres}m to order (+${wastePct}% waste from ${totals.rawMetres.toFixed(1)}m raw)`,
@@ -204,7 +208,6 @@ export default function RubberEstimatorPage() {
         ? [
             {
               part_id: selectedRubber.id,
-              // Generic name for customer-facing output — real product in internal_notes
               name: 'Weatherseal materials',
               sku: selectedRubber.sku,
               sell_price: selectedRubber.sell_price,
@@ -228,13 +231,13 @@ export default function RubberEstimatorPage() {
     router.push(`/jobs/${params.id}/items`)
   }
 
-  const canAdd = groups.length > 0 && selectedRubber
+  const canAdd = totals.totalWindows > 0 && selectedRubber
 
   return (
     <>
       {pickerOpen && (
         <RubberPickerOverlay
-          onSelect={handleSelectRubber}
+          onSelect={(part) => { setSelectedRubber(part); setPickerOpen(false) }}
           onClose={() => setPickerOpen(false)}
         />
       )}
@@ -252,112 +255,122 @@ export default function RubberEstimatorPage() {
             </h1>
           </div>
 
-          {/* Step 1: Add windows */}
+          {/* Add windows card */}
           <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg mb-aq-lg">
             <p className="text-body font-medium text-aq-ink mb-aq-md">Add windows</p>
 
-            {/* Mode toggle */}
-            <div className="flex gap-aq-sm mb-aq-lg">
-              {['band', 'dims'].map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setMode(m)}
-                  className={`min-h-tap flex-1 text-secondary font-medium rounded-aq-lg border transition-colors duration-150 ${
-                    mode === m
-                      ? 'border-aq-green bg-aq-green-tint text-aq-green'
-                      : 'border-aq-border text-aq-muted bg-white'
-                  }`}
-                >
-                  {m === 'band' ? 'By size' : 'By dimensions'}
-                </button>
-              ))}
+            {/* Band rows */}
+            <div className="flex flex-col">
+              {bands.map((band, idx) => {
+                const count = bandCounts[idx] || 0
+                const active = count > 0
+                return (
+                  <div
+                    key={idx}
+                    className={`flex items-center gap-aq-md py-[10px] ${idx > 0 ? 'border-t border-aq-border' : ''}`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-secondary font-medium transition-colors ${active ? 'text-aq-ink' : 'text-aq-muted'}`}>
+                        {band.name}
+                      </p>
+                      <p className="text-caption text-aq-muted">{band.perimeter_m}m perimeter per window</p>
+                    </div>
+                    <div className="flex items-center gap-[2px] shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setBandCount(idx, count - 1)}
+                        disabled={count === 0}
+                        aria-label={`Decrease ${band.name}`}
+                        className="w-10 h-10 flex items-center justify-center rounded-aq-md border border-aq-border bg-white text-aq-muted text-lg leading-none disabled:opacity-30 hover:bg-aq-surface active:bg-aq-border transition-colors"
+                      >
+                        −
+                      </button>
+                      <span className="w-8 text-center text-secondary font-medium text-aq-ink select-none">
+                        {count}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setBandCount(idx, count + 1)}
+                        aria-label={`Increase ${band.name}`}
+                        className={`w-10 h-10 flex items-center justify-center rounded-aq-md border text-lg leading-none transition-colors ${
+                          active
+                            ? 'bg-aq-green-tint border-aq-green-tint-border text-aq-green'
+                            : 'bg-white border-aq-border text-aq-muted hover:bg-aq-surface active:bg-aq-border'
+                        }`}
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
 
-            {mode === 'band' ? (
-              <div className="flex flex-col gap-aq-md">
-                <div className="flex flex-wrap gap-aq-sm">
-                  {bands.map((band, idx) => (
+            {/* Odd groups list */}
+            {oddGroups.length > 0 && (
+              <div className="mt-aq-md border-t border-aq-border pt-aq-md flex flex-col gap-[10px]">
+                {oddGroups.map((g) => (
+                  <div key={g.id} className="flex items-center gap-aq-md">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-secondary font-medium text-aq-ink">
+                        {g.count} x {g.label} = {(g.count * g.perimeter_m).toFixed(1)}m
+                      </p>
+                      <p className="text-caption text-aq-muted">{g.labour_min} min each</p>
+                    </div>
                     <button
-                      key={idx}
                       type="button"
-                      onClick={() => setSelectedBandIdx(idx)}
-                      className={`min-h-tap px-aq-lg text-secondary font-medium rounded-aq-lg border transition-colors duration-150 ${
-                        selectedBandIdx === idx
-                          ? 'border-aq-green bg-aq-green-tint text-aq-green'
-                          : 'border-aq-border text-aq-muted bg-white'
-                      }`}
+                      onClick={() => removeOddGroup(g.id)}
+                      className="w-10 h-10 flex items-center justify-center text-aq-error rounded-aq-md hover:bg-red-50 transition-colors"
+                      aria-label={`Remove ${g.label}`}
                     >
-                      {band.name}
+                      <XIcon />
                     </button>
-                  ))}
-                </div>
-                {bands[selectedBandIdx] && (
-                  <p className="text-caption text-aq-muted">
-                    {bands[selectedBandIdx].perimeter_m}m perimeter · {bands[selectedBandIdx].labour_min} min each
-                  </p>
-                )}
-                <div className="flex items-center justify-between">
-                  <Stepper value={bandCount} onChange={setBandCount} min={1} max={99} label="Windows" />
-                  <Button variant="primary" onClick={handleAddGroup} disabled={!bands[selectedBandIdx]}>
-                    Add
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-aq-md">
-                <div className="flex gap-aq-sm">
-                  <div className="flex-1">
-                    <p className="text-secondary text-aq-muted mb-aq-sm">Width (mm)</p>
-                    <Stepper value={dimWidth} onChange={setDimWidth} min={100} max={5000} step={100} />
                   </div>
-                  <div className="flex-1">
-                    <p className="text-secondary text-aq-muted mb-aq-sm">Height (mm)</p>
-                    <Stepper value={dimHeight} onChange={setDimHeight} min={100} max={5000} step={100} />
-                  </div>
-                </div>
-                <p className="text-caption text-aq-muted">
-                  Perimeter: {((2 * (dimWidth + dimHeight)) / 1000).toFixed(2)}m
-                </p>
-                <div className="flex items-center justify-between">
-                  <Stepper value={dimCount} onChange={setDimCount} min={1} max={99} label="Windows" />
-                  <Button variant="primary" onClick={handleAddGroup}>
-                    Add
-                  </Button>
-                </div>
+                ))}
               </div>
             )}
+
+            {/* Odd-sized window toggle */}
+            <div className="mt-aq-md">
+              {!showOddForm ? (
+                <button
+                  type="button"
+                  onClick={() => setShowOddForm(true)}
+                  className="w-full min-h-tap flex items-center justify-center gap-aq-sm border-2 border-dashed border-aq-border rounded-aq-xl text-secondary font-medium text-aq-muted hover:border-aq-green hover:text-aq-green transition-colors duration-150"
+                >
+                  <span>+</span>
+                  <span>Add an odd-sized window</span>
+                </button>
+              ) : (
+                <div className="border-t border-aq-border pt-aq-md">
+                  <p className="text-secondary font-medium text-aq-ink mb-aq-md">Odd-sized window</p>
+                  <div className="flex gap-aq-sm mb-aq-sm">
+                    <div className="flex-1">
+                      <p className="text-caption text-aq-muted mb-aq-xs">Width (mm)</p>
+                      <Stepper value={oddWidth} onChange={setOddWidth} min={100} max={5000} step={100} />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-caption text-aq-muted mb-aq-xs">Height (mm)</p>
+                      <Stepper value={oddHeight} onChange={setOddHeight} min={100} max={5000} step={100} />
+                    </div>
+                  </div>
+                  <p className="text-caption text-aq-muted mb-aq-md">
+                    Perimeter: {((2 * (oddWidth + oddHeight)) / 1000).toFixed(2)}m
+                  </p>
+                  <div className="mb-aq-md">
+                    <Stepper value={oddCount} onChange={setOddCount} min={1} max={99} label="Windows" />
+                  </div>
+                  <div className="flex gap-aq-sm">
+                    <Button variant="secondary" onClick={() => setShowOddForm(false)}>Cancel</Button>
+                    <Button variant="primary" onClick={handleAddOddGroup}>Add</Button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Groups list */}
-          {groups.length > 0 && (
-            <div className="flex flex-col gap-[10px] mb-aq-lg">
-              {groups.map((g) => (
-                <div
-                  key={g.id}
-                  className="bg-white border border-aq-border rounded-aq-xl px-aq-lg py-aq-md flex items-center gap-aq-md"
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-secondary font-medium text-aq-ink">
-                      {g.count} x {g.label} = {(g.count * g.perimeter_m).toFixed(1)}m
-                    </p>
-                    <p className="text-caption text-aq-muted">{g.labour_min} min each</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => removeGroup(g.id)}
-                    className="min-h-tap min-w-[48px] flex items-center justify-center text-aq-error hover:bg-aq-error-tint rounded-aq-md transition-colors"
-                    aria-label={`Remove ${g.label}`}
-                  >
-                    <XIcon />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Running totals — visible as soon as windows are added */}
-          {groups.length > 0 && (
+          {/* Running totals */}
+          {totals.totalWindows > 0 && (
             <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg mb-aq-lg">
               <p className="text-body font-medium text-aq-ink mb-aq-md">Estimate summary</p>
               <div className="flex flex-col gap-aq-sm">
@@ -407,7 +420,7 @@ export default function RubberEstimatorPage() {
             />
           </div>
 
-          {/* Step 2: Rubber type — chosen last, after counting windows */}
+          {/* Rubber type — chosen last, after counting windows */}
           <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg mb-aq-lg">
             <p className="text-body font-medium text-aq-ink mb-aq-md">Rubber type</p>
             {selectedRubber ? (
