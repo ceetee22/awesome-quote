@@ -83,7 +83,7 @@ function RubberPickerOverlay({ onSelect, onClose }) {
                       <p className="text-caption text-aq-muted">{part.sku}</p>
                     </div>
                     <span className="text-body font-medium text-aq-green shrink-0">
-                      {formatCurrency(part.sell_price)}/{part.unit || 'm'}
+                      {formatCurrency(part.sell_price)}/m
                     </span>
                   </div>
                 </button>
@@ -422,7 +422,7 @@ export default function RubberEstimatorPage() {
                 <div className="flex-1 min-w-0">
                   <p className="text-secondary font-medium text-aq-ink truncate">{selectedRubber.name}</p>
                   <p className="text-caption text-aq-muted">
-                    {formatCurrency(selectedRubber.sell_price)}/{selectedRubber.unit || 'm'}
+                    {formatCurrency(selectedRubber.sell_price)}/m
                   </p>
                 </div>
                 <Button variant="secondary" onClick={() => setPickerOpen(true)}>Change</Button>
