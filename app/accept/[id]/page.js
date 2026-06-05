@@ -44,15 +44,20 @@ function GreenTick() {
   )
 }
 
-function AQMonogram() {
+function getInitials(name) {
+  if (!name) return ''
+  return name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('')
+}
+
+function BusinessMonogram({ initials }) {
   return (
     <div style={{
       width: 40, height: 40, borderRadius: 8, background: C.green,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       flexShrink: 0,
     }}>
-      <span style={{ color: '#fff', fontWeight: 600, fontSize: 16, letterSpacing: '-0.5px' }}>
-        AQ
+      <span style={{ color: '#fff', fontWeight: 600, fontSize: initials.length > 1 ? 15 : 18, letterSpacing: '-0.5px' }}>
+        {initials}
       </span>
     </div>
   )
@@ -68,7 +73,7 @@ function BusinessLogo({ logoUrl, bizName }) {
       />
     )
   }
-  return <AQMonogram />
+  return <BusinessMonogram initials={getInitials(bizName)} />
 }
 
 // Totals computed from quote data

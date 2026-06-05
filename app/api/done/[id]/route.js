@@ -26,7 +26,7 @@ export async function GET(request, { params }) {
       .single(),
     supabase
       .from('settings')
-      .select('business_name, business_phone, business_email')
+      .select('business_name, trading_name, business_phone, business_email, logo_url')
       .eq('id', 1)
       .single(),
   ])
@@ -40,7 +40,9 @@ export async function GET(request, { params }) {
 
   return NextResponse.json({
     customer_name: job.customer_name,
-    business_name: settings.business_name || 'Awesome Building Services',
+    business_name: settings.business_name || '',
+    trading_name: settings.trading_name || '',
+    logo_url: settings.logo_url || null,
     business_phone: settings.business_phone || '',
     business_email: settings.business_email || '',
     legacy_after_photos: job.after_photos || [],

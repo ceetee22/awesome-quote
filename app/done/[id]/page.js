@@ -14,14 +14,29 @@ const C = {
   white:      '#FFFFFF',
 }
 
-function AQMonogram() {
+function getInitials(name) {
+  if (!name) return ''
+  return name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('')
+}
+
+function BusinessLogo({ logoUrl, bizName }) {
+  if (logoUrl) {
+    return (
+      <img
+        src={logoUrl}
+        alt={bizName}
+        style={{ maxHeight: 40, maxWidth: 120, objectFit: 'contain', flexShrink: 0, background: '#ffffff' }}
+      />
+    )
+  }
+  const initials = getInitials(bizName)
   return (
     <div style={{
       width: 40, height: 40, borderRadius: 8, background: C.green,
       display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
     }}>
-      <span style={{ color: '#fff', fontWeight: 600, fontSize: 16, letterSpacing: '-0.5px' }}>
-        AQ
+      <span style={{ color: '#fff', fontWeight: 600, fontSize: initials.length > 1 ? 15 : 18, letterSpacing: '-0.5px' }}>
+        {initials}
       </span>
     </div>
   )
@@ -106,10 +121,10 @@ export default function DonePage() {
 
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 }}>
-          <AQMonogram />
+          <BusinessLogo logoUrl={data.logo_url} bizName={data.trading_name || data.business_name} />
           <div>
             <p style={{ fontWeight: 500, fontSize: 16, color: C.ink, margin: 0 }}>
-              {data.business_name}
+              {data.trading_name || data.business_name}
             </p>
             {(data.business_phone || data.business_email) && (
               <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>
