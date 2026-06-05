@@ -4,14 +4,31 @@ import { useState, useMemo, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useJob } from '@/lib/job-context'
 import { useSettings } from '@/lib/settings-context'
-import { getDefaultSupplier } from '@/lib/db'
+import { getDefaultSupplier, updateSupplier } from '@/lib/db'
 import { formatCurrency } from '@/lib/pricing'
 import { generatePoPdf } from '@/lib/generate-po-pdf'
 import { downloadBlob } from '@/lib/generate-quote-pdf'
 import BackButton from '@/components/BackButton'
 import Button from '@/components/Button'
-import ConfirmModal from '@/components/ConfirmModal'
 import Stepper from '@/components/Stepper'
+
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result.split(',')[1])
+    reader.onerror = reject
+    reader.readAsDataURL(blob)
+  })
+}
+
+const inputClass =
+  'w-full bg-white border border-aq-border rounded-aq-md min-h-tap px-4 text-body text-aq-ink placeholder:text-aq-subtle focus:outline-none focus:border-aq-green transition-colors duration-150'
+const btnPrimary =
+  'w-full min-h-tap text-btn font-medium rounded-aq-lg bg-aq-green text-white hover:bg-aq-green-hover active:bg-aq-green-pressed disabled:opacity-50 transition-colors duration-150'
+const btnSecondary =
+  'w-full min-h-tap text-btn font-medium rounded-aq-lg bg-white text-aq-ink border border-aq-border hover:bg-aq-surface active:bg-aq-border transition-colors duration-150'
+const btnGhost =
+  'w-full min-h-tap text-btn font-medium rounded-aq-lg text-aq-muted hover:text-aq-ink transition-colors duration-150'
 
 function ToggleSwitch({ on, onChange }) {
   return (
@@ -39,17 +56,23 @@ export default function OrderPage() {
   const { currentJob, setCurrentJob } = useJob()
   const { settings } = useSettings()
 
-  const [phase, setPhase] = useState('review') // review | generating | done
+  const [phase, setPhase] = useState('review') // review | sending | done | error
   const [supplier, setSupplier] = useState(null)
   const [collectionMethod, setCollectionMethod] = useState('pickup')
   const [deliverySource, setDeliverySource] = useState('business')
   const [customAddress, setCustomAddress] = useState('')
 
+  const [sendOutcome, setSendOutcome] = useState(null) // { type: 'emailed', email } | { type: 'downloaded' }
+  const [sendError, setSendError] = useState('')
+
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [emailInput, setEmailInput] = useState('')
+  const [saveEmailToSupplier, setSaveEmailToSupplier] = useState(false)
+
   useEffect(() => {
     getDefaultSupplier().then(setSupplier)
   }, [])
 
-  // Build order lines from all parts across all job items
   const initialLines = useMemo(() => {
     if (!currentJob) return []
     const lines = []
@@ -71,7 +94,6 @@ export default function OrderPage() {
   }, [currentJob])
 
   const [orderLines, setOrderLines] = useState(() => initialLines)
-  const [confirmOpen, setConfirmOpen] = useState(false)
 
   function toggleLine(id) {
     setOrderLines((prev) =>
@@ -97,30 +119,144 @@ export default function OrderPage() {
         : customAddress
       : ''
 
-  async function handleConfirm() {
-    setConfirmOpen(false)
-    setPhase('generating')
-    try {
-      const blob = await generatePoPdf({
-        job: currentJob,
-        settings: { ...settings, supplier_name: supplierName, supplier_email: supplierEmail },
-        orderLines: enabledLines,
-        collectionMethod,
-        deliveryAddress: resolvedAddress,
-        logoUrl: settings.logo_url || null,
-      })
-      const poNumber = `PO-${(currentJob.id || '').substring(0, 8).toUpperCase()}`
-      downloadBlob(blob, `${poNumber}.pdf`)
-      setCurrentJob((prev) => ({
-        ...prev,
-        status: 'ordered',
-        po_collection_method: collectionMethod,
-        po_delivery_address: resolvedAddress,
-      }))
-      setPhase('done')
-    } catch {
-      setPhase('review')
+  const poNumber = currentJob ? `PO-${currentJob.id.substring(0, 8).toUpperCase()}` : ''
+
+  function buildPoArgs() {
+    return {
+      job: currentJob,
+      settings: { ...settings, supplier_name: supplierName },
+      orderLines: enabledLines,
+      collectionMethod,
+      deliveryAddress: resolvedAddress,
+      logoUrl: settings.logo_url || null,
     }
+  }
+
+  function applyJobUpdate() {
+    setCurrentJob((prev) => ({
+      ...prev,
+      status: 'ordered',
+      po_collection_method: collectionMethod,
+      po_delivery_address: resolvedAddress,
+    }))
+  }
+
+  async function sendPo(toEmail) {
+    const displayName = (settings.trading_name || settings.business_name || '').trim()
+    if (!displayName) {
+      setSendError('Add your business name in settings before sending purchase orders.')
+      setPhase('error')
+      return
+    }
+    setConfirmOpen(false)
+    setPhase('sending')
+    setSendError('')
+    try {
+      const blob = await generatePoPdf(buildPoArgs())
+      const base64 = await blobToBase64(blob)
+      const res = await fetch('/api/send-po', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pdf_base64: base64,
+          filename: `${poNumber}.pdf`,
+          supplier_email: toEmail,
+          supplier_name: supplierName,
+          po_number: poNumber,
+          collection_method: collectionMethod,
+          delivery_address: resolvedAddress,
+          business_name: settings.trading_name || settings.business_name,
+          business_email: settings.business_email || '',
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Send failed')
+      if (saveEmailToSupplier && supplier?.id) {
+        await updateSupplier(supplier.id, { email: toEmail })
+      }
+      applyJobUpdate()
+      setSendOutcome({ type: 'emailed', email: toEmail })
+      setPhase('done')
+    } catch (err) {
+      setSendError(err.message || 'Could not send the purchase order.')
+      setPhase('error')
+    }
+  }
+
+  async function downloadPo() {
+    setConfirmOpen(false)
+    setPhase('sending')
+    try {
+      const blob = await generatePoPdf(buildPoArgs())
+      downloadBlob(blob, `${poNumber}.pdf`)
+    } catch (err) {
+      console.error('PO generation failed:', err)
+    }
+    applyJobUpdate()
+    setSendOutcome({ type: 'downloaded' })
+    setPhase('done')
+  }
+
+  // ── Phase screens ─────────────────────────────────────────────────────────────
+
+  if (phase === 'sending') {
+    return (
+      <div className="min-h-dvh bg-aq-surface flex items-center justify-center px-aq-lg">
+        <p className="text-body text-aq-muted">Sending...</p>
+      </div>
+    )
+  }
+
+  if (phase === 'done') {
+    return (
+      <div className="min-h-dvh bg-aq-surface flex items-center justify-center px-aq-lg">
+        <div className="max-w-[480px] w-full mx-auto">
+          <div className="bg-white border border-aq-border rounded-aq-xl p-aq-2xl mb-aq-lg text-center">
+            {sendOutcome?.type === 'emailed' ? (
+              <>
+                <p className="text-section font-medium text-aq-ink mb-aq-sm">Purchase order sent.</p>
+                <p className="text-body text-aq-muted">
+                  Emailed to {supplierName} at {sendOutcome.email}.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-section font-medium text-aq-ink mb-aq-sm">Purchase order downloaded.</p>
+                <p className="text-body text-aq-muted">Send it to {supplierName} to complete the order.</p>
+              </>
+            )}
+          </div>
+          <Button variant="primary" fullWidth onClick={() => router.push(`/jobs/${params.id}`)}>
+            Go to job
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  if (phase === 'error') {
+    return (
+      <div className="min-h-dvh bg-aq-surface flex items-center justify-center px-aq-lg">
+        <div className="max-w-[480px] w-full mx-auto">
+          <div className="bg-white border border-aq-border rounded-aq-xl p-aq-2xl mb-aq-lg text-center">
+            <p className="text-section font-medium text-aq-ink mb-aq-sm">Could not send the purchase order.</p>
+            <p className="text-body text-aq-muted">{sendError}</p>
+          </div>
+          <div className="flex flex-col gap-aq-sm">
+            <Button
+              variant="primary"
+              fullWidth
+              onClick={() => { setPhase('review'); setConfirmOpen(true) }}
+            >
+              Try again
+            </Button>
+            <Button variant="secondary" fullWidth onClick={downloadPo}>
+              Download PDF instead
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (!currentJob) {
@@ -131,27 +267,6 @@ export default function OrderPage() {
     )
   }
 
-  // Done phase
-  if (phase === 'done') {
-    return (
-      <div className="min-h-dvh bg-aq-surface">
-        <div className="max-w-[480px] mx-auto px-aq-lg pb-aq-2xl">
-          <div className="flex items-center gap-aq-sm py-aq-xl">
-            <h1 className="text-page-title font-medium text-aq-ink">Order placed</h1>
-          </div>
-          <div className="bg-aq-green-tint border border-aq-green rounded-aq-xl p-aq-xl mb-aq-lg text-center">
-            <p className="text-body font-medium text-aq-ink mb-aq-xs">Purchase order downloaded</p>
-            <p className="text-secondary text-aq-muted">Email it to your supplier to complete the order.</p>
-          </div>
-          <Button variant="primary" fullWidth onClick={() => router.push(`/jobs/${params.id}`)}>
-            Go to job
-          </Button>
-        </div>
-      </div>
-    )
-  }
-
-  // Empty state
   if (orderLines.length === 0) {
     return (
       <div className="min-h-dvh bg-aq-surface">
@@ -167,6 +282,8 @@ export default function OrderPage() {
       </div>
     )
   }
+
+  const sendToEmail = supplierEmail || emailInput.trim()
 
   return (
     <div className="min-h-dvh bg-aq-surface">
@@ -312,7 +429,7 @@ export default function OrderPage() {
                   value={customAddress}
                   onChange={(e) => setCustomAddress(e.target.value)}
                   placeholder="Enter delivery address"
-                  className="w-full bg-white border border-aq-border rounded-aq-md min-h-tap px-4 text-body text-aq-ink placeholder:text-aq-subtle focus:outline-none focus:border-aq-green transition-colors"
+                  className={inputClass}
                 />
               )}
 
@@ -331,27 +448,81 @@ export default function OrderPage() {
           <Button
             variant="primary"
             fullWidth
-            disabled={enabledLines.length === 0 || phase === 'generating'}
+            disabled={enabledLines.length === 0}
             onClick={() => setConfirmOpen(true)}
           >
-            {phase === 'generating' ? 'Generating...' : 'Send purchase order'}
+            Send purchase order
           </Button>
         </div>
       </div>
 
-      <ConfirmModal
-        open={confirmOpen}
-        question={`Send purchase order to ${supplierName} for ${formatCurrency(orderTotal)}?`}
-        detail={
-          collectionMethod === 'pickup'
-            ? 'This will download a PO PDF. Marked for pickup.'
-            : `This will download a PO PDF. Deliver to ${resolvedAddress || 'the address selected'}.`
-        }
-        confirmLabel="Yes, send"
-        cancelLabel="Not yet"
-        onConfirm={handleConfirm}
-        onCancel={() => setConfirmOpen(false)}
-      />
+      {/* ── Confirm + send modal ─────────────────────────────────────────────── */}
+      {confirmOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-aq-xl"
+          style={{ backgroundColor: 'rgba(31, 45, 55, 0.5)' }}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="bg-white rounded-aq-xl p-aq-xl w-full max-w-sm shadow-lg">
+            <p className="text-body font-medium text-aq-ink mb-aq-xs">
+              Send purchase order to {supplierName}?
+            </p>
+            <p className="text-secondary text-aq-muted mb-aq-lg">
+              {formatCurrency(orderTotal)} excl. GST
+            </p>
+
+            {supplierEmail ? (
+              <p className="text-secondary text-aq-muted mb-aq-lg">
+                Sending to: {supplierEmail}
+              </p>
+            ) : (
+              <div className="mb-aq-lg">
+                <label htmlFor="supplier-email" className="block text-secondary text-aq-muted mb-aq-sm">
+                  Supplier email
+                </label>
+                <input
+                  id="supplier-email"
+                  type="email"
+                  value={emailInput}
+                  onChange={(e) => setEmailInput(e.target.value)}
+                  placeholder="e.g. orders@supplier.co.nz"
+                  className={inputClass}
+                  autoFocus
+                />
+                {emailInput.trim() && supplier?.id && (
+                  <label className="flex items-center gap-aq-sm mt-aq-sm min-h-tap cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={saveEmailToSupplier}
+                      onChange={(e) => setSaveEmailToSupplier(e.target.checked)}
+                      className="w-5 h-5 accent-[#22A67A]"
+                    />
+                    <span className="text-secondary text-aq-muted">Save email for {supplierName}</span>
+                  </label>
+                )}
+              </div>
+            )}
+
+            <div className="flex flex-col gap-aq-sm">
+              <button
+                type="button"
+                disabled={!sendToEmail}
+                onClick={() => sendPo(sendToEmail)}
+                className={btnPrimary}
+              >
+                Send by email
+              </button>
+              <button type="button" onClick={downloadPo} className={btnSecondary}>
+                Download PDF instead
+              </button>
+              <button type="button" onClick={() => setConfirmOpen(false)} className={btnGhost}>
+                Not yet
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
