@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useJob } from '@/lib/job-context'
 import { useSettings } from '@/lib/settings-context'
@@ -79,6 +79,8 @@ export default function HomePage() {
   const { jobs } = useJob()
   const { settings } = useSettings()
   const [bizBannerDismissed, setBizBannerDismissed] = useState(false)
+  const [greeting, setGreeting] = useState('')
+  useEffect(() => { setGreeting(getGreeting()) }, [])
 
   const missingBizDetails =
     !settings?.business_name?.trim() ||
@@ -123,7 +125,7 @@ export default function HomePage() {
               <h1 className="text-page-title font-medium text-aq-ink leading-tight">
                 Jotey
               </h1>
-              <p className="text-secondary text-aq-muted">{getGreeting()}</p>
+              {greeting && <p className="text-secondary text-aq-muted">{greeting}</p>}
             </div>
             <Link
               href="/settings"
