@@ -1,6 +1,6 @@
 {
-  "name": "Awesome Quote",
-  "short_name": "AQ",
+  "name": "Jotey",
+  "short_name": "Jotey",
   "description": "Joinery repair quoting for NZ tradespeople",
   "start_url": "/",
   "display": "standalone",

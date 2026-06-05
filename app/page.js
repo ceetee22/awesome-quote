@@ -7,21 +7,20 @@ import { useSettings } from '@/lib/settings-context'
 import { formatCurrency, jobTotalIncGst } from '@/lib/pricing'
 import StatusBadge from '@/components/StatusBadge'
 
-function AQMonogram() {
+function JoteyMonogram() {
   return (
-    <svg width="48" height="48" viewBox="0 0 48 48" fill="none" aria-label="Awesome Quote">
+    <svg width="48" height="48" viewBox="0 0 48 48" fill="none" aria-label="Jotey">
       <rect width="48" height="48" rx="10" fill="#22A67A" />
       <text
         x="24"
-        y="32"
+        y="33"
         fontFamily="Inter, system-ui, -apple-system, sans-serif"
         fontWeight="500"
-        fontSize="22"
+        fontSize="26"
         fill="#FFFFFF"
         textAnchor="middle"
-        letterSpacing="-1.5"
       >
-        AQ
+        J
       </text>
     </svg>
   )
@@ -119,10 +118,10 @@ export default function HomePage() {
 
           {/* Header */}
           <header className="flex items-center gap-aq-md py-aq-xl">
-            <AQMonogram />
+            <JoteyMonogram />
             <div className="flex-1">
               <h1 className="text-page-title font-medium text-aq-ink leading-tight">
-                Awesome Quote
+                Jotey
               </h1>
               <p className="text-secondary text-aq-muted">{getGreeting()}</p>
             </div>

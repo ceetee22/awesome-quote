@@ -9,7 +9,7 @@ const inter = Inter({
 })
 
 export const metadata = {
-  title: 'Awesome Quote',
+  title: 'Jotey',
   description: 'Joinery repair quoting for NZ tradespeople',
   manifest: '/manifest.json',
   icons: {
@@ -34,7 +34,7 @@ export default function RootLayout({ children }) {
         <meta name="theme-color" content="#22A67A" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="Awesome Quote" />
+        <meta name="apple-mobile-web-app-title" content="Jotey" />
       </head>
       <body>
         <Providers>{children}</Providers>

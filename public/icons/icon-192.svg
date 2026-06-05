@@ -2,12 +2,11 @@
   <rect width="192" height="192" rx="43" fill="#22A67A"/>
   <text
     x="96"
-    y="128"
+    y="130"
     font-family="Inter, system-ui, -apple-system, sans-serif"
     font-weight="500"
-    font-size="96"
+    font-size="110"
     fill="#FFFFFF"
     text-anchor="middle"
-    letter-spacing="-6"
-  >AQ</text>
+  >J</text>
 </svg>

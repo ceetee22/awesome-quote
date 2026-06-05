@@ -76,7 +76,7 @@ function ResetPasswordContent() {
         {/* Brand */}
         <div className="flex flex-col items-center mb-aq-2xl">
           <div className="w-16 h-16 rounded-aq-xl bg-aq-green flex items-center justify-center mb-aq-md">
-            <span className="text-white font-bold text-xl select-none">AQ</span>
+            <span className="text-white font-bold text-xl select-none">J</span>
           </div>
         </div>
 

@@ -925,7 +925,7 @@ export default function SettingsPage() {
 
       <ConfirmModal
         open={signOutModalOpen}
-        question="Sign out of Awesome Quote?"
+        question="Sign out of Jotey?"
         confirmLabel="Yes, sign out"
         cancelLabel="Cancel"
         onConfirm={handleSignOut}
