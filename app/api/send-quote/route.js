@@ -22,7 +22,10 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
 
-  const displayName = (business_name || 'Jotey').trim()
+  const displayName = (business_name || '').trim()
+  if (!displayName) {
+    return NextResponse.json({ error: 'Add your business name in settings before sending quotes.' }, { status: 400 })
+  }
   const subject = `Quote from ${displayName}`
 
   const html = `

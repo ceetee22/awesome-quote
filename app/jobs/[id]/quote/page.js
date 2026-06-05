@@ -180,6 +180,12 @@ export default function QuotePage() {
   // ── Email send ───────────────────────────────────────────────────────────────
 
   async function sendByEmail({ email, pdfArgs, filename, jobUpdates }) {
+    const displayName = (settings.trading_name || settings.business_name || '').trim()
+    if (!displayName) {
+      setSendError('Add your business name in settings before sending quotes.')
+      setSendPhase('error')
+      return
+    }
     setSendPhase('sending')
     setSendError('')
     try {
@@ -194,7 +200,7 @@ export default function QuotePage() {
           customer_email: email,
           customer_name: currentJob.customer_name,
           accept_url: acceptanceUrl,
-          business_name: settings.business_name || 'Jotey',
+          business_name: settings.trading_name || settings.business_name,
           business_email: settings.business_email || '',
         }),
       })
