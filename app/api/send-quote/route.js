@@ -48,13 +48,17 @@ export async function POST(request) {
     displayName,
   ].join('\n')
 
+  if (!business_email) {
+    console.warn('send-quote: no business_email set — reply-to will not be configured. Tradie should add their email in settings.')
+  }
+
   const resend = new Resend(apiKey)
 
   try {
     await resend.emails.send({
       from: `${displayName} <${FROM_ADDRESS}>`,
       to: customer_email,
-      ...(business_email ? { reply_to: business_email } : {}),
+      ...(business_email ? { replyTo: business_email } : {}),
       subject,
       html,
       text,
