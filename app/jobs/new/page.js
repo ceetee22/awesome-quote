@@ -23,6 +23,7 @@ export default function NewJobPage() {
   const [name, setName] = useState('')
   const [address, setAddress] = useState('')
   const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState('')
   const [source, setSource] = useState(JOB_SOURCE.DIRECT)
 
   async function handleStart() {
@@ -30,6 +31,7 @@ export default function NewJobPage() {
       customer_name: name.trim(),
       customer_address: address.trim(),
       customer_phone: phone.trim(),
+      customer_email: email.trim(),
       source,
     })
     router.push(`/jobs/${job.id}/items/add`)
@@ -100,6 +102,24 @@ export default function NewJobPage() {
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="e.g. 021 123 4567"
+              className={inputClass}
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="email"
+              className="block text-secondary text-aq-muted mb-aq-sm"
+            >
+              Email <span className="text-aq-subtle">(optional — for sending quotes)</span>
+            </label>
+            <input
+              id="email"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="e.g. sarah@example.com"
               className={inputClass}
             />
           </div>

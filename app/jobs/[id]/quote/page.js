@@ -9,25 +9,35 @@ import { generateQuotePdf, downloadBlob } from '@/lib/generate-quote-pdf'
 import Button from '@/components/Button'
 import BackButton from '@/components/BackButton'
 import Stepper from '@/components/Stepper'
-import ConfirmModal from '@/components/ConfirmModal'
 
 function XIcon() {
   return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      aria-hidden="true">
       <path d="M18 6L6 18M6 6l12 12" />
     </svg>
   )
 }
+
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result.split(',')[1])
+    reader.onerror = reject
+    reader.readAsDataURL(blob)
+  })
+}
+
+const inputClass =
+  'w-full bg-white border border-aq-border rounded-aq-md min-h-tap px-4 text-body text-aq-ink placeholder:text-aq-subtle focus:outline-none focus:border-aq-green transition-colors duration-150'
+
+const btnPrimary =
+  'w-full min-h-tap text-btn font-medium rounded-aq-lg bg-aq-green text-white hover:bg-aq-green-hover active:bg-aq-green-pressed disabled:opacity-50 transition-colors duration-150'
+const btnSecondary =
+  'w-full min-h-tap text-btn font-medium rounded-aq-lg bg-white text-aq-ink border border-aq-border hover:bg-aq-surface active:bg-aq-border transition-colors duration-150'
+const btnGhost =
+  'w-full min-h-tap text-btn font-medium rounded-aq-lg text-aq-muted hover:text-aq-ink transition-colors duration-150'
 
 export default function QuotePage() {
   const params = useParams()
@@ -77,8 +87,12 @@ export default function QuotePage() {
 
   const [parkingNoteShown, setParkingNoteShown] = useState(() => currentJob?.parking_note_shown ?? true)
 
+  const [customerEmail, setCustomerEmail] = useState(currentJob?.customer_email || '')
+
   const [sendModalOpen, setSendModalOpen] = useState(false)
-  const [sendPhase, setSendPhase] = useState(null)
+  const [sendPhase, setSendPhase] = useState(null) // null | 'sending' | 'done' | 'error'
+  const [sendOutcome, setSendOutcome] = useState(null) // { type: 'emailed', email } | { type: 'downloaded' }
+  const [sendError, setSendError] = useState('')
 
   // Revise mode state
   const [isRevise, setIsRevise] = useState(false)
@@ -114,6 +128,39 @@ export default function QuotePage() {
 
   const newVersion = (currentJob?.quote_version || 1) + 1
 
+  const acceptanceUrl = `https://awesome-quote.vercel.app/accept/${params.id}`
+
+  function buildPdfArgs(extra = {}) {
+    return {
+      job: currentJob,
+      settings,
+      labourHours,
+      calloutFee,
+      hourlyRate,
+      subtotal,
+      gst,
+      total,
+      acceptanceUrl,
+      logoUrl: settings.logo_url || null,
+      parkingNoteShown,
+      ...extra,
+    }
+  }
+
+  function buildSafeName() {
+    return `quote-${(currentJob?.customer_name || 'quote').replace(/[^a-z0-9]/gi, '-').toLowerCase()}`
+  }
+
+  function baseJobUpdates() {
+    return {
+      status: 'quoted',
+      labour_hours: labourHours,
+      callout_fee: calloutFee,
+      hourly_rate: hourlyRate,
+      parking_note_shown: parkingNoteShown,
+    }
+  }
+
   function removePart(key) {
     setQuoteParts((prev) => prev.filter((p) => p._key !== key))
   }
@@ -130,95 +177,117 @@ export default function QuotePage() {
     setCalloutFee(parseFloat(val) || 0)
   }
 
-  async function handleSendConfirm() {
-    setSendModalOpen(false)
-    setSendPhase('generating')
+  // ── Email send ───────────────────────────────────────────────────────────────
+
+  async function sendByEmail({ email, pdfArgs, filename, jobUpdates }) {
+    setSendPhase('sending')
+    setSendError('')
     try {
-      const blob = await generateQuotePdf({
-        job: currentJob,
-        settings,
-        labourHours,
-        calloutFee,
-        hourlyRate,
-        subtotal,
-        gst,
-        total,
-        acceptanceUrl: `https://awesome-quote.vercel.app/accept/${params.id}`,
-        logoUrl: settings.logo_url || null,
-        parkingNoteShown,
+      const blob = await generateQuotePdf(pdfArgs)
+      const base64 = await blobToBase64(blob)
+      const res = await fetch('/api/send-quote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pdf_base64: base64,
+          filename,
+          customer_email: email,
+          customer_name: currentJob.customer_name,
+          accept_url: acceptanceUrl,
+          business_name: settings.business_name || 'Jotey',
+          business_email: settings.business_email || '',
+        }),
       })
-      const safeName = (currentJob.customer_name || 'quote')
-        .replace(/[^a-z0-9]/gi, '-')
-        .toLowerCase()
-      downloadBlob(blob, `quote-${safeName}.pdf`)
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Send failed')
+      setCurrentJob((prev) => prev ? { ...prev, ...jobUpdates, customer_email: email } : prev)
+      setCustomerEmail(email)
+      setSendOutcome({ type: 'emailed', email })
+      setSendPhase('done')
+    } catch (err) {
+      setSendError(err.message || 'Could not send the email. Check the address and try again.')
+      setSendPhase('error')
+    }
+  }
+
+  async function downloadPdf({ pdfArgs, filename, jobUpdates }) {
+    setSendPhase('sending')
+    try {
+      const blob = await generateQuotePdf(pdfArgs)
+      downloadBlob(blob, filename)
     } catch (err) {
       console.error('PDF generation failed:', err)
     }
-    setCurrentJob((prev) =>
-      prev
-        ? { ...prev, status: 'quoted', labour_hours: labourHours, callout_fee: calloutFee, hourly_rate: hourlyRate, parking_note_shown: parkingNoteShown }
-        : prev
-    )
+    setCurrentJob((prev) => prev ? { ...prev, ...jobUpdates } : prev)
+    setSendOutcome({ type: 'downloaded' })
     setSendPhase('done')
   }
 
-  async function handleReviseConfirm() {
+  // ── Normal send handlers ─────────────────────────────────────────────────────
+
+  function handleSendByEmail(email) {
+    setSendModalOpen(false)
+    sendByEmail({
+      email,
+      pdfArgs: buildPdfArgs(),
+      filename: `${buildSafeName()}.pdf`,
+      jobUpdates: baseJobUpdates(),
+    })
+  }
+
+  function handleDownloadFallback() {
+    setSendModalOpen(false)
+    downloadPdf({
+      pdfArgs: buildPdfArgs(),
+      filename: `${buildSafeName()}.pdf`,
+      jobUpdates: baseJobUpdates(),
+    })
+  }
+
+  // ── Revise handlers ──────────────────────────────────────────────────────────
+
+  function handleReviseByEmail(email) {
     setReviseModalOpen(false)
-    setSendPhase('generating')
-    try {
-      const blob = await generateQuotePdf({
-        job: currentJob,
-        settings,
-        labourHours,
-        calloutFee,
-        hourlyRate,
-        subtotal,
-        gst,
-        total,
-        acceptanceUrl: `https://awesome-quote.vercel.app/accept/${params.id}`,
-        quoteVersion: newVersion,
-        isRevision: true,
-        logoUrl: settings.logo_url || null,
-        parkingNoteShown,
-      })
-      const safeName = (currentJob.customer_name || 'quote')
-        .replace(/[^a-z0-9]/gi, '-')
-        .toLowerCase()
-      downloadBlob(blob, `quote-${safeName}-v${newVersion}.pdf`)
-    } catch (err) {
-      console.error('PDF generation failed:', err)
-    }
-    setCurrentJob((prev) =>
-      prev
-        ? {
-            ...prev,
-            status: 'quoted',
-            labour_hours: labourHours,
-            callout_fee: calloutFee,
-            hourly_rate: hourlyRate,
-            quote_version: newVersion,
-            previous_total: originalTotal,
-            revision_note: reviseNote || null,
-            parking_note_shown: parkingNoteShown,
-          }
-        : prev
-    )
-    setSendPhase('done')
+    sendByEmail({
+      email,
+      pdfArgs: buildPdfArgs({ quoteVersion: newVersion, isRevision: true }),
+      filename: `${buildSafeName()}-v${newVersion}.pdf`,
+      jobUpdates: {
+        ...baseJobUpdates(),
+        quote_version: newVersion,
+        previous_total: originalTotal,
+        revision_note: reviseNote || null,
+      },
+    })
+  }
+
+  function handleReviseDownloadFallback() {
+    setReviseModalOpen(false)
+    downloadPdf({
+      pdfArgs: buildPdfArgs({ quoteVersion: newVersion, isRevision: true }),
+      filename: `${buildSafeName()}-v${newVersion}.pdf`,
+      jobUpdates: {
+        ...baseJobUpdates(),
+        quote_version: newVersion,
+        previous_total: originalTotal,
+        revision_note: reviseNote || null,
+      },
+    })
   }
 
   function handleSaveDraft() {
     setCurrentJob((prev) =>
-      prev
-        ? { ...prev, status: 'draft', labour_hours: labourHours, callout_fee: calloutFee, hourly_rate: hourlyRate, parking_note_shown: parkingNoteShown }
-        : prev
+      prev ? { ...prev, status: 'draft', labour_hours: labourHours, callout_fee: calloutFee, hourly_rate: hourlyRate, parking_note_shown: parkingNoteShown } : prev
     )
     router.push('/')
   }
 
-  if (sendPhase === 'generating') {
+  // ── Phase screens ────────────────────────────────────────────────────────────
+
+  if (sendPhase === 'sending') {
     return (
       <div className="min-h-dvh bg-aq-surface flex items-center justify-center px-aq-lg">
-        <p className="text-body text-aq-muted">Generating PDF...</p>
+        <p className="text-body text-aq-muted">Sending...</p>
       </div>
     )
   }
@@ -228,14 +297,49 @@ export default function QuotePage() {
       <div className="min-h-dvh bg-aq-surface flex items-center justify-center px-aq-lg">
         <div className="max-w-[480px] w-full mx-auto">
           <div className="bg-white border border-aq-border rounded-aq-xl p-aq-2xl mb-aq-lg text-center">
-            <p className="text-section font-medium text-aq-ink mb-aq-sm">Quote downloaded.</p>
-            <p className="text-body text-aq-muted">
-              Email it to {currentJob?.customer_name}.
-            </p>
+            {sendOutcome?.type === 'emailed' ? (
+              <>
+                <p className="text-section font-medium text-aq-ink mb-aq-sm">Quote sent.</p>
+                <p className="text-body text-aq-muted">Emailed to {sendOutcome.email}.</p>
+              </>
+            ) : (
+              <>
+                <p className="text-section font-medium text-aq-ink mb-aq-sm">Quote downloaded.</p>
+                <p className="text-body text-aq-muted">Email it to {currentJob?.customer_name}.</p>
+              </>
+            )}
           </div>
           <Button variant="primary" fullWidth onClick={() => router.replace(`/jobs/${params.id}`)}>
             Go to job
           </Button>
+        </div>
+      </div>
+    )
+  }
+
+  if (sendPhase === 'error') {
+    return (
+      <div className="min-h-dvh bg-aq-surface flex items-center justify-center px-aq-lg">
+        <div className="max-w-[480px] w-full mx-auto">
+          <div className="bg-white border border-aq-border rounded-aq-xl p-aq-2xl mb-aq-lg text-center">
+            <p className="text-section font-medium text-aq-ink mb-aq-sm">Could not send the email.</p>
+            <p className="text-body text-aq-muted">Check the address and try again.</p>
+          </div>
+          <div className="flex flex-col gap-aq-sm">
+            <Button variant="primary" fullWidth onClick={() => { setSendPhase(null); setSendModalOpen(true) }}>
+              Try again
+            </Button>
+            <Button variant="secondary" fullWidth onClick={() => {
+              setSendPhase(null)
+              downloadPdf({
+                pdfArgs: buildPdfArgs(),
+                filename: `${buildSafeName()}.pdf`,
+                jobUpdates: baseJobUpdates(),
+              })
+            }}>
+              Download PDF instead
+            </Button>
+          </div>
         </div>
       </div>
     )
@@ -246,9 +350,7 @@ export default function QuotePage() {
       <div className="min-h-dvh bg-aq-surface flex items-center justify-center px-aq-lg">
         <div className="text-center">
           <p className="text-body text-aq-muted mb-aq-lg">No job in progress.</p>
-          <Button variant="primary" onClick={() => router.push('/')}>
-            Go home
-          </Button>
+          <Button variant="primary" onClick={() => router.push('/')}>Go home</Button>
         </div>
       </div>
     )
@@ -307,17 +409,10 @@ export default function QuotePage() {
                       <p className="text-caption font-medium text-aq-muted mb-aq-sm">{group.label}</p>
                     )}
                     {group.parts.map((p) => (
-                      <div
-                        key={p._key}
-                        className="flex items-center gap-aq-sm py-aq-sm border-b border-aq-border last:border-0"
-                      >
+                      <div key={p._key} className="flex items-center gap-aq-sm py-aq-sm border-b border-aq-border last:border-0">
                         <div className="flex-1 min-w-0">
-                          <p className="text-secondary font-medium text-aq-ink leading-snug truncate">
-                            {p.name}
-                          </p>
-                          <p className="text-caption text-aq-subtle">
-                            x{p.qty} @ {formatCurrency(p.sell_price)}/{p.unit}
-                          </p>
+                          <p className="text-secondary font-medium text-aq-ink leading-snug truncate">{p.name}</p>
+                          <p className="text-caption text-aq-subtle">x{p.qty} @ {formatCurrency(p.sell_price)}/{p.unit}</p>
                         </div>
                         <span className="text-secondary font-medium text-aq-ink shrink-0 w-[72px] text-right">
                           {formatCurrency(p.sell_price * p.qty)}
@@ -345,11 +440,7 @@ export default function QuotePage() {
               })}
             </div>
           )}
-          <Button
-            variant="secondary"
-            fullWidth
-            onClick={() => router.push(`/jobs/${params.id}/items/add`)}
-          >
+          <Button variant="secondary" fullWidth onClick={() => router.push(`/jobs/${params.id}/items/add`)}>
             Add more parts
           </Button>
         </div>
@@ -358,20 +449,11 @@ export default function QuotePage() {
         <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg mb-aq-lg">
           <div className="flex items-center justify-between mb-aq-md">
             <h2 className="text-section font-medium text-aq-ink">Labour</h2>
-            <span className="text-body font-medium text-aq-ink">
-              {formatCurrency(labourTotal)}
-            </span>
+            <span className="text-body font-medium text-aq-ink">{formatCurrency(labourTotal)}</span>
           </div>
           <div className="flex items-center justify-between gap-aq-md">
-            <Stepper
-              value={labourHours}
-              onChange={setLabourHours}
-              min={0.5}
-              step={0.5}
-            />
-            <span className="text-secondary text-aq-muted shrink-0">
-              {formatCurrency(hourlyRate)}/hr
-            </span>
+            <Stepper value={labourHours} onChange={setLabourHours} min={0.5} step={0.5} />
+            <span className="text-secondary text-aq-muted shrink-0">{formatCurrency(hourlyRate)}/hr</span>
           </div>
         </div>
 
@@ -387,7 +469,6 @@ export default function QuotePage() {
             <span className="text-body font-medium text-aq-ink">{formatCurrency(calloutFee)}</span>
           </div>
 
-          {/* Zone pills */}
           {zones.length > 0 && (
             <div className="flex flex-wrap gap-aq-sm mb-aq-md">
               {zones.map((zone) => (
@@ -407,12 +488,9 @@ export default function QuotePage() {
             </div>
           )}
 
-          {/* Manual override */}
           <p className="text-caption text-aq-muted mb-aq-sm">Manual override</p>
           <div className="flex items-stretch border border-aq-border rounded-aq-md overflow-hidden min-h-tap focus-within:border-aq-green transition-colors duration-150 bg-white">
-            <span className="px-3 flex items-center text-body text-aq-muted bg-aq-surface border-r border-aq-border shrink-0">
-              $
-            </span>
+            <span className="px-3 flex items-center text-body text-aq-muted bg-aq-surface border-r border-aq-border shrink-0">$</span>
             <input
               type="number"
               value={manualInput}
@@ -432,16 +510,10 @@ export default function QuotePage() {
           >
             <div className="text-left">
               <p className="text-body font-medium text-aq-ink">Show parking note on quote</p>
-              <p className="text-caption text-aq-muted mt-[2px]">
-                Adds "Parking fees may apply" to the PDF
-              </p>
+              <p className="text-caption text-aq-muted mt-[2px]">Adds "Parking fees may apply" to the PDF</p>
             </div>
-            <div className={`relative inline-flex shrink-0 h-7 w-12 rounded-full transition-colors duration-150 ${
-              parkingNoteShown ? 'bg-aq-green' : 'bg-aq-border'
-            }`}>
-              <span className={`inline-block h-6 w-6 mt-0.5 rounded-full bg-white shadow transition-transform duration-150 ${
-                parkingNoteShown ? 'translate-x-5' : 'translate-x-0.5'
-              }`} />
+            <div className={`relative inline-flex shrink-0 h-7 w-12 rounded-full transition-colors duration-150 ${parkingNoteShown ? 'bg-aq-green' : 'bg-aq-border'}`}>
+              <span className={`inline-block h-6 w-6 mt-0.5 rounded-full bg-white shadow transition-transform duration-150 ${parkingNoteShown ? 'translate-x-5' : 'translate-x-0.5'}`} />
             </div>
           </button>
         </div>
@@ -450,9 +522,7 @@ export default function QuotePage() {
         <div className="bg-aq-green-tint border border-aq-green-tint-border rounded-aq-xl p-aq-lg mb-aq-2xl">
           <div className="flex justify-between items-baseline mb-aq-sm">
             <span className="text-secondary text-aq-muted">Subtotal</span>
-            <span className="text-body font-medium text-aq-ink">
-              {formatCurrency(subtotal)}
-            </span>
+            <span className="text-body font-medium text-aq-ink">{formatCurrency(subtotal)}</span>
           </div>
           <div className="flex justify-between items-baseline mb-aq-md pb-aq-md border-b border-aq-green-tint-border">
             <span className="text-secondary text-aq-muted">GST (15%)</span>
@@ -460,9 +530,7 @@ export default function QuotePage() {
           </div>
           <div className="flex justify-between items-baseline">
             <span className="text-body font-medium text-aq-ink">Total (incl. GST)</span>
-            <span className="text-display font-medium text-aq-ink">
-              {formatCurrency(total)}
-            </span>
+            <span className="text-display font-medium text-aq-ink">{formatCurrency(total)}</span>
           </div>
         </div>
 
@@ -491,17 +559,56 @@ export default function QuotePage() {
 
       </div>
 
-      {/* Normal send modal */}
-      <ConfirmModal
-        open={sendModalOpen}
-        question={`Send this quote for ${formatCurrency(total)} to ${currentJob.customer_name}?`}
-        confirmLabel="Yes, send"
-        cancelLabel="Not yet"
-        onConfirm={handleSendConfirm}
-        onCancel={() => setSendModalOpen(false)}
-      />
+      {/* ── Send quote modal ──────────────────────────────────────────────────── */}
+      {sendModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-aq-xl"
+          style={{ backgroundColor: 'rgba(31, 45, 55, 0.5)' }}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="bg-white rounded-aq-xl p-aq-xl w-full max-w-sm shadow-lg">
+            <p className="text-body font-medium text-aq-ink mb-aq-xs">
+              Send quote to {currentJob.customer_name}
+            </p>
+            <p className="text-secondary text-aq-muted mb-aq-lg">
+              {formatCurrency(total)} incl. GST
+            </p>
+            <div className="mb-aq-lg">
+              <label htmlFor="send-email" className="block text-secondary text-aq-muted mb-aq-sm">
+                Customer email
+              </label>
+              <input
+                id="send-email"
+                type="email"
+                value={customerEmail}
+                onChange={(e) => setCustomerEmail(e.target.value)}
+                placeholder="e.g. sarah@example.com"
+                className={inputClass}
+                autoFocus
+              />
+            </div>
+            <div className="flex flex-col gap-aq-sm">
+              <button
+                type="button"
+                disabled={!customerEmail.trim()}
+                onClick={() => handleSendByEmail(customerEmail.trim())}
+                className={btnPrimary}
+              >
+                Send by email
+              </button>
+              <button type="button" onClick={handleDownloadFallback} className={btnSecondary}>
+                Download PDF instead
+              </button>
+              <button type="button" onClick={() => setSendModalOpen(false)} className={btnGhost}>
+                Not yet
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-      {/* Revise confirm modal — custom, has text input for revision note */}
+      {/* ── Revise modal ──────────────────────────────────────────────────────── */}
       {reviseModalOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-aq-xl"
@@ -516,7 +623,7 @@ export default function QuotePage() {
             <p className="text-secondary text-aq-muted mb-aq-lg">
               The new total is {formatCurrency(total)}, up from {formatCurrency(originalTotal)}. They will need to accept again.
             </p>
-            <div className="mb-aq-lg">
+            <div className="mb-aq-md">
               <label className="block text-secondary text-aq-muted mb-aq-sm">
                 Note about changes (optional)
               </label>
@@ -525,22 +632,35 @@ export default function QuotePage() {
                 value={reviseNote}
                 onChange={(e) => setReviseNote(e.target.value)}
                 placeholder="e.g. Added second roller set"
-                className="w-full bg-white border border-aq-border rounded-aq-md min-h-tap px-3 text-body text-aq-ink focus:outline-none focus:border-aq-green transition-colors"
+                className={inputClass}
+              />
+            </div>
+            <div className="mb-aq-lg">
+              <label htmlFor="revise-email" className="block text-secondary text-aq-muted mb-aq-sm">
+                Customer email
+              </label>
+              <input
+                id="revise-email"
+                type="email"
+                value={customerEmail}
+                onChange={(e) => setCustomerEmail(e.target.value)}
+                placeholder="e.g. sarah@example.com"
+                className={inputClass}
               />
             </div>
             <div className="flex flex-col gap-aq-sm">
               <button
                 type="button"
-                onClick={handleReviseConfirm}
-                className="w-full min-h-tap text-btn font-medium rounded-aq-lg bg-aq-green text-white hover:bg-aq-green-hover active:bg-aq-green-pressed transition-colors duration-150"
+                disabled={!customerEmail.trim()}
+                onClick={() => handleReviseByEmail(customerEmail.trim())}
+                className={btnPrimary}
               >
-                Yes, send revised quote
+                Send by email
               </button>
-              <button
-                type="button"
-                onClick={() => setReviseModalOpen(false)}
-                className="w-full min-h-tap text-btn font-medium rounded-aq-lg bg-white text-aq-ink border border-aq-border hover:bg-aq-surface active:bg-aq-border transition-colors duration-150"
-              >
+              <button type="button" onClick={handleReviseDownloadFallback} className={btnSecondary}>
+                Download PDF instead
+              </button>
+              <button type="button" onClick={() => setReviseModalOpen(false)} className={btnGhost}>
                 Cancel
               </button>
             </div>
