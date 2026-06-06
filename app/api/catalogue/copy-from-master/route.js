@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
+import { createServiceClient } from '@/lib/supabase-service'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
@@ -10,16 +11,18 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 })
   }
 
+  // Step 1: verify user auth via their session
   const cookieStore = cookies()
-  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+  const userClient = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
       getAll: () => cookieStore.getAll(),
       setAll: () => {},
     },
   })
 
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user }, error: authError } = await userClient.auth.getUser()
   if (!user) {
+    console.error('copy-from-master: not authenticated', authError?.message)
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -34,19 +37,26 @@ export async function POST(request) {
     return NextResponse.json({ error: 'supplier_id required' }, { status: 400 })
   }
 
-  // Fetch the user's business — scoped to owner_id (belt-and-suspenders)
-  const { data: biz } = await supabase
+  // Step 2: verify business ownership via user session (belt-and-suspenders)
+  const { data: biz, error: bizError } = await userClient
     .from('businesses')
     .select('id')
     .eq('owner_id', user.id)
     .maybeSingle()
 
   if (!biz) {
+    console.error('copy-from-master: no business for user', user.id, bizError?.message)
     return NextResponse.json({ error: 'No business found' }, { status: 400 })
   }
 
+  // Step 3: use service role for all DB operations (ownership is verified above)
+  const service = createServiceClient()
+  if (!service) {
+    return NextResponse.json({ error: 'Service role not configured' }, { status: 500 })
+  }
+
   // Fetch master supplier
-  const { data: masterSupplier } = await supabase
+  const { data: masterSupplier } = await service
     .from('master_suppliers')
     .select('name')
     .eq('id', supplier_id)
@@ -57,7 +67,7 @@ export async function POST(request) {
   }
 
   // Fetch active master parts for this supplier
-  const { data: masterParts, error: partsError } = await supabase
+  const { data: masterParts, error: partsError } = await service
     .from('master_parts')
     .select('*')
     .eq('supplier_id', supplier_id)
@@ -73,7 +83,7 @@ export async function POST(request) {
   }
 
   // Fetch existing SKUs for this business to avoid duplicates
-  const { data: existingParts } = await supabase
+  const { data: existingParts } = await service
     .from('parts')
     .select('sku')
     .eq('business_id', biz.id)
@@ -82,7 +92,7 @@ export async function POST(request) {
     (existingParts || []).map((p) => p.sku).filter(Boolean)
   )
 
-  // Build insert rows — skipping parts whose SKU already exists
+  // Build insert rows — skip any part whose SKU already exists in this business
   const toInsert = masterParts
     .filter((p) => !p.sku || !existingSkus.has(p.sku))
     .map((p) => ({
@@ -92,8 +102,8 @@ export async function POST(request) {
       name: p.name,
       category: p.category,
       rrp: p.rrp,
-      sell_price: p.rrp,   // RRP as starting sell price
-      cost_price: null,    // operator fills in their negotiated rate later
+      sell_price: p.rrp,   // RRP as starting sell price; operator adjusts later
+      cost_price: null,    // operator fills in their negotiated rate
       fits: p.fits || [],
       fixes: p.fixes || [],
       default_qty: p.default_qty || 1,
@@ -113,10 +123,10 @@ export async function POST(request) {
   let totalInserted = 0
   for (let i = 0; i < toInsert.length; i += BATCH_SIZE) {
     const batch = toInsert.slice(i, i + BATCH_SIZE)
-    const { error } = await supabase.from('parts').insert(batch)
+    const { error } = await service.from('parts').insert(batch)
     if (error) {
-      console.error('copy-from-master: insert failed:', error.message)
-      return NextResponse.json({ error: 'Insert failed' }, { status: 500 })
+      console.error('copy-from-master: insert failed:', error.message, error.code, error.details)
+      return NextResponse.json({ error: 'Insert failed', detail: error.message }, { status: 500 })
     }
     totalInserted += batch.length
   }

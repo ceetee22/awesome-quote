@@ -3,14 +3,26 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSettings } from '@/lib/settings-context'
-import { updateBusiness, saveSettings } from '@/lib/db'
+import { updateBusiness } from '@/lib/db'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { v4 as uuidv4 } from 'uuid'
 
 const inputClass = 'w-full bg-white border border-aq-border rounded-aq-md min-h-tap px-4 text-body text-aq-ink placeholder:text-aq-subtle focus:outline-none focus:border-aq-green transition-colors duration-150'
 const labelClass = 'block text-secondary text-aq-muted mb-aq-sm'
 
-const TOTAL_STEPS = 7
+const TOTAL_STEPS = 6
+
+// Default zone IDs are UUIDs, not static strings, to avoid PK collisions with other businesses
+function defaultZones() {
+  return [
+    { id: uuidv4(), name: 'Local', min_km: 0, max_km: 15, fee: 50 },
+    { id: uuidv4(), name: 'Mid-range', min_km: 15, max_km: 30, fee: 75 },
+    { id: uuidv4(), name: 'Far', min_km: 30, max_km: null, fee: 100 },
+  ]
+}
+
+// Static string IDs from DEFAULT_CALLOUT_ZONES — if zones have these, they're just defaults, not saved
+const STATIC_ZONE_IDS = new Set(['local', 'mid', 'far'])
 
 function ProgressDots({ current }) {
   return (
@@ -35,13 +47,6 @@ export default function SetupPage() {
   const [saving, setSaving] = useState(false)
   const [geoLoading, setGeoLoading] = useState(false)
 
-  // Step 6 — catalogue selection
-  const [masterSuppliers, setMasterSuppliers] = useState([])
-  const [suppliersLoading, setSuppliersLoading] = useState(false)
-  const [selectedSupplierIds, setSelectedSupplierIds] = useState(new Set())
-  const [copiedCounts, setCopiedCounts] = useState({})
-  const [copyingId, setCopyingId] = useState(null)
-
   const [bizName, setBizName] = useState('')
   const [contactEmail, setContactEmail] = useState('')
   const [contactPhone, setContactPhone] = useState('')
@@ -55,14 +60,15 @@ export default function SetupPage() {
   const [homeLng, setHomeLng] = useState(null)
   const [geoError, setGeoError] = useState('')
 
-  const [zones, setZones] = useState([
-    { id: 'local', name: 'Local', min_km: 0, max_km: 15, fee: 50 },
-    { id: 'mid', name: 'Mid-range', min_km: 15, max_km: 30, fee: 75 },
-    { id: 'far', name: 'Far', min_km: 30, max_km: null, fee: 100 },
-  ])
+  const [zones, setZones] = useState(defaultZones)
 
-  const [supplierName, setSupplierName] = useState('Joinery Hardware NZ')
-  const [supplierEmail, setSupplierEmail] = useState('')
+  // Step 5 — supplier + parts
+  const [masterSuppliers, setMasterSuppliers] = useState([])
+  const [suppliersLoading, setSuppliersLoading] = useState(false)
+  const [selectedSupplierIds, setSelectedSupplierIds] = useState(new Set())
+  const [selectedSupplierEmail, setSelectedSupplierEmail] = useState('')
+  const [copiedCounts, setCopiedCounts] = useState({})
+  const [copyingId, setCopyingId] = useState(null)
 
   useEffect(() => {
     if (!settingsLoaded) return
@@ -79,13 +85,15 @@ export default function SetupPage() {
     setHomeAddress(settings.home_base_address || '')
     if (settings.home_base_lat) setHomeLat(settings.home_base_lat)
     if (settings.home_base_lng) setHomeLng(settings.home_base_lng)
-    if (settings.callout_zones?.length > 0) setZones(settings.callout_zones)
-    setSupplierName(settings.supplier_name || 'Joinery Hardware NZ')
-    setSupplierEmail(settings.supplier_email || '')
+    // Only load saved zones if they have real DB IDs (not the static defaults)
+    const savedZones = settings.callout_zones || []
+    const hasSavedZones = savedZones.length > 0 && savedZones.some((z) => !STATIC_ZONE_IDS.has(z.id))
+    if (hasSavedZones) setZones(savedZones)
   }, [settingsLoaded])
 
+  // Load master suppliers when reaching step 5
   useEffect(() => {
-    if (step !== 6) return
+    if (step !== 5) return
     const supabase = createSupabaseBrowserClient()
     if (!supabase) return
     setSuppliersLoading(true)
@@ -113,6 +121,8 @@ export default function SetupPage() {
       if (res.ok) {
         setSelectedSupplierIds((prev) => new Set([...prev, supplier.id]))
         setCopiedCounts((prev) => ({ ...prev, [supplier.id]: data.count }))
+      } else {
+        console.error('copy-from-master error:', data)
       }
     } catch (e) {
       console.error('Failed to copy parts:', e)
@@ -142,11 +152,23 @@ export default function SetupPage() {
   }
 
   async function saveStep(stepNum) {
-    // Step 6 (parts) — parts are copied via the Select button, Next just advances
-    if (stepNum === 6) {
-      setStep(7)
+    // Step 5 (supplier + parts) — parts are copied already via Select button
+    // Just save supplier name/email if one was selected, then advance
+    if (stepNum === 5) {
+      const selected = masterSuppliers.find((s) => selectedSupplierIds.has(s.id))
+      if (selected) {
+        setSaving(true)
+        try {
+          await updateBusiness({ supplier_name: selected.name, supplier_email: selectedSupplierEmail })
+          updateSettings({ supplier_name: selected.name, supplier_email: selectedSupplierEmail })
+        } finally {
+          setSaving(false)
+        }
+      }
+      setStep(6)
       return
     }
+
     setSaving(true)
     try {
       if (stepNum === 1) {
@@ -165,15 +187,13 @@ export default function SetupPage() {
       } else if (stepNum === 4) {
         const supabase = createSupabaseBrowserClient()
         if (supabase) {
+          // Delete this business's existing zones, then insert new ones
           await supabase.from('callout_zones').delete().neq('id', '__never__')
           const rows = zones.map((z, i) => ({ ...z, sort_order: i }))
           await supabase.from('callout_zones').insert(rows)
         }
         updateSettings({ callout_zones: zones })
-      } else if (stepNum === 5) {
-        await updateBusiness({ supplier_name: supplierName, supplier_email: supplierEmail })
-        updateSettings({ supplier_name: supplierName, supplier_email: supplierEmail })
-      } else if (stepNum === 7) {
+      } else if (stepNum === 6) {
         await updateBusiness({ setup_complete: true })
         updateSettings({ setup_complete: true })
         router.push('/')
@@ -208,6 +228,9 @@ export default function SetupPage() {
 
   const pageStyle = { minHeight: '100dvh', background: '#F6F8F7', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 16px' }
   const cardStyle = { width: '100%', maxWidth: 440, background: '#FFFFFF', borderRadius: 12, padding: 24, border: '1px solid #E4EAE8' }
+
+  // The selected supplier object (for showing email input below card)
+  const selectedSupplier = masterSuppliers.find((s) => selectedSupplierIds.has(s.id)) || null
 
   return (
     <div style={pageStyle}>
@@ -332,92 +355,90 @@ export default function SetupPage() {
 
         {step === 5 && (
           <>
-            <h2 style={{ fontSize: 22, fontWeight: 500, color: '#1F2D37', margin: '0 0 4px' }}>Your supplier</h2>
-            <p style={{ fontSize: 16, color: '#4A5B68', margin: '0 0 24px' }}>Where you order parts from. Used on purchase orders.</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div>
-                <label className={labelClass}>Supplier name</label>
-                <input type="text" value={supplierName} onChange={e => setSupplierName(e.target.value)} className={inputClass} />
-              </div>
-              <div>
-                <label className={labelClass}>Supplier email</label>
-                <input type="email" value={supplierEmail} onChange={e => setSupplierEmail(e.target.value)} placeholder="orders@supplier.co.nz" className={inputClass} />
-              </div>
-            </div>
-          </>
-        )}
-
-        {step === 6 && (
-          <>
-            <h2 style={{ fontSize: 22, fontWeight: 500, color: '#1F2D37', margin: '0 0 4px' }}>Your parts</h2>
-            <p style={{ fontSize: 16, color: '#4A5B68', margin: '0 0 24px' }}>Start with a pre-loaded catalogue from your supplier. You can edit prices and add your own parts anytime.</p>
+            <h2 style={{ fontSize: 22, fontWeight: 500, color: '#1F2D37', margin: '0 0 4px' }}>Your supplier and parts</h2>
+            <p style={{ fontSize: 16, color: '#4A5B68', margin: '0 0 24px' }}>Pick your supplier to load a pre-tagged catalogue. You can edit prices and add your own parts anytime.</p>
 
             {suppliersLoading ? (
               <p style={{ fontSize: 14, color: '#8CA3A0', textAlign: 'center', padding: '24px 0' }}>Loading suppliers...</p>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 4 }}>
                 {masterSuppliers.map((supplier) => {
                   const isSelected = selectedSupplierIds.has(supplier.id)
                   const isCopying = copyingId === supplier.id
                   const count = copiedCounts[supplier.id]
                   return (
-                    <div
-                      key={supplier.id}
-                      style={{
-                        background: isSelected ? '#E6F7F0' : '#F6F8F7',
-                        border: `1px solid ${isSelected ? '#C5E8D5' : '#E4EAE8'}`,
-                        borderRadius: 10,
-                        padding: 14,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 12,
-                      }}
-                    >
-                      <div style={{ width: 44, height: 44, borderRadius: 8, background: '#22A67A', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
-                        {supplier.logo_url ? (
-                          <img src={supplier.logo_url} alt={supplier.name} style={{ width: 44, height: 44, objectFit: 'contain' }} />
-                        ) : (
-                          <span style={{ color: '#FFFFFF', fontSize: 20, fontWeight: 700 }}>{supplier.name[0]}</span>
-                        )}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontSize: 16, fontWeight: 600, color: '#1F2D37', margin: '0 0 2px' }}>{supplier.name}</p>
-                        <p style={{ fontSize: 13, color: '#8CA3A0', margin: 0 }}>
-                          {count != null
-                            ? `${count} parts added to your catalogue`
-                            : `${supplier.parts_count} parts, tagged and ready`}
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        disabled={isCopying || isSelected}
-                        onClick={() => handleSelectSupplier(supplier)}
+                    <div key={supplier.id}>
+                      <div
                         style={{
-                          minHeight: 44,
-                          minWidth: 88,
-                          borderRadius: 8,
-                          border: 'none',
-                          background: '#22A67A',
-                          color: '#FFFFFF',
-                          fontSize: 15,
-                          fontWeight: 500,
-                          cursor: isSelected ? 'default' : 'pointer',
-                          opacity: isCopying ? 0.6 : 1,
-                          flexShrink: 0,
+                          background: isSelected ? '#E6F7F0' : '#F6F8F7',
+                          border: `1px solid ${isSelected ? '#C5E8D5' : '#E4EAE8'}`,
+                          borderRadius: isSelected ? '10px 10px 0 0' : 10,
+                          padding: 14,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 12,
                         }}
                       >
-                        {isCopying ? 'Loading...' : isSelected ? '✓ Selected' : 'Select'}
-                      </button>
+                        <div style={{ width: 44, height: 44, borderRadius: 8, background: '#22A67A', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+                          {supplier.logo_url ? (
+                            <img src={supplier.logo_url} alt={supplier.name} style={{ width: 44, height: 44, objectFit: 'contain' }} />
+                          ) : (
+                            <span style={{ color: '#FFFFFF', fontSize: 20, fontWeight: 700 }}>{supplier.name[0]}</span>
+                          )}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ fontSize: 16, fontWeight: 600, color: '#1F2D37', margin: '0 0 2px' }}>{supplier.name}</p>
+                          <p style={{ fontSize: 13, color: '#8CA3A0', margin: 0 }}>
+                            {count != null
+                              ? `${count} parts added to your catalogue`
+                              : `${supplier.parts_count} parts, tagged and ready`}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={isCopying || isSelected}
+                          onClick={() => handleSelectSupplier(supplier)}
+                          style={{
+                            minHeight: 44,
+                            minWidth: 88,
+                            borderRadius: 8,
+                            border: 'none',
+                            background: '#22A67A',
+                            color: '#FFFFFF',
+                            fontSize: 15,
+                            fontWeight: 500,
+                            cursor: isSelected ? 'default' : 'pointer',
+                            opacity: isCopying ? 0.6 : 1,
+                            flexShrink: 0,
+                          }}
+                        >
+                          {isCopying ? 'Loading...' : isSelected ? '✓ Selected' : 'Select'}
+                        </button>
+                      </div>
+
+                      {/* Email input appears below card when supplier is selected */}
+                      {isSelected && (
+                        <div style={{ background: '#F0FBF6', border: '1px solid #C5E8D5', borderTop: 'none', borderRadius: '0 0 10px 10px', padding: '12px 14px' }}>
+                          <label style={{ display: 'block', fontSize: 13, color: '#4A5B68', marginBottom: 6 }}>Supplier email (for purchase orders)</label>
+                          <input
+                            type="email"
+                            value={selectedSupplierEmail}
+                            onChange={e => setSelectedSupplierEmail(e.target.value)}
+                            placeholder="orders@supplier.co.nz"
+                            style={{ width: '100%', border: '1px solid #C5E8D5', borderRadius: 8, minHeight: 44, padding: '0 12px', fontSize: 16, color: '#1F2D37', background: '#FFFFFF', outline: 'none', boxSizing: 'border-box' }}
+                          />
+                        </div>
+                      )}
                     </div>
                   )
                 })}
               </div>
             )}
 
-            <div style={{ textAlign: 'center', marginTop: 4 }}>
+            <div style={{ textAlign: 'center', marginTop: 12 }}>
               <button
                 type="button"
-                onClick={() => setStep(7)}
+                onClick={() => setStep(6)}
                 style={{ background: 'none', border: 'none', color: '#8CA3A0', fontSize: 13, cursor: 'pointer', padding: '8px 0' }}
               >
                 Skip, I'll add my own
@@ -426,7 +447,7 @@ export default function SetupPage() {
           </>
         )}
 
-        {step === 7 && (
+        {step === 6 && (
           <>
             <div style={{ textAlign: 'center', marginBottom: 24 }}>
               <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#E6F7F0', border: '2px solid #C5E8D5', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: 24, color: '#22A67A', fontWeight: 700 }}>
@@ -453,18 +474,18 @@ export default function SetupPage() {
         )}
 
         <div style={{ display: 'flex', gap: 10, marginTop: 28 }}>
-          {step > 1 && step < 7 && (
+          {step > 1 && step < 6 && (
             <button type="button" onClick={() => setStep(s => s - 1)} style={{ flex: 1, minHeight: 48, border: '1px solid #E4EAE8', borderRadius: 10, background: '#FFFFFF', color: '#4A5B68', fontSize: 17, fontWeight: 500, cursor: 'pointer' }}>
               Back
             </button>
           )}
           <button
             type="button"
-            disabled={saving || (step === 6 && !!copyingId)}
+            disabled={saving || (step === 5 && !!copyingId)}
             onClick={() => saveStep(step)}
-            style={{ flex: step === 1 || step === 7 ? 1 : 2, minHeight: 48, borderRadius: 10, border: 'none', background: '#22A67A', color: '#FFFFFF', fontSize: 17, fontWeight: 500, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}
+            style={{ flex: step === 1 || step === 6 ? 1 : 2, minHeight: 48, borderRadius: 10, border: 'none', background: '#22A67A', color: '#FFFFFF', fontSize: 17, fontWeight: 500, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}
           >
-            {saving ? 'Saving...' : step === 7 ? 'Start using Jotey' : 'Next'}
+            {saving ? 'Saving...' : step === 6 ? 'Start using Jotey' : 'Next'}
           </button>
         </div>
       </div>
