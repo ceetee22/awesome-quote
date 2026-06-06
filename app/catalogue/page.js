@@ -102,9 +102,15 @@ function PartCard({ part, onAddToJob, onEdit }) {
 
       {/* Pricing row — Cost / RRP / Sell */}
       <div className="flex items-baseline gap-aq-lg mb-aq-sm flex-wrap">
-        <span className="text-caption text-aq-muted">
-          Cost {formatCurrency(part.cost_price)}
-        </span>
+        {part.cost_price != null ? (
+          <span className="text-caption text-aq-muted">
+            Cost {formatCurrency(part.cost_price)}
+          </span>
+        ) : (
+          <span className="text-caption text-aq-subtle italic">
+            Add your cost price
+          </span>
+        )}
         {part.rrp != null && (
           <span className="text-caption text-aq-muted">
             RRP {formatCurrency(part.rrp)}

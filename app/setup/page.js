@@ -10,7 +10,7 @@ import { v4 as uuidv4 } from 'uuid'
 const inputClass = 'w-full bg-white border border-aq-border rounded-aq-md min-h-tap px-4 text-body text-aq-ink placeholder:text-aq-subtle focus:outline-none focus:border-aq-green transition-colors duration-150'
 const labelClass = 'block text-secondary text-aq-muted mb-aq-sm'
 
-const TOTAL_STEPS = 6
+const TOTAL_STEPS = 7
 
 function ProgressDots({ current }) {
   return (
@@ -34,6 +34,13 @@ export default function SetupPage() {
   const [step, setStep] = useState(1)
   const [saving, setSaving] = useState(false)
   const [geoLoading, setGeoLoading] = useState(false)
+
+  // Step 6 — catalogue selection
+  const [masterSuppliers, setMasterSuppliers] = useState([])
+  const [suppliersLoading, setSuppliersLoading] = useState(false)
+  const [selectedSupplierIds, setSelectedSupplierIds] = useState(new Set())
+  const [copiedCounts, setCopiedCounts] = useState({})
+  const [copyingId, setCopyingId] = useState(null)
 
   const [bizName, setBizName] = useState('')
   const [contactEmail, setContactEmail] = useState('')
@@ -77,6 +84,43 @@ export default function SetupPage() {
     setSupplierEmail(settings.supplier_email || '')
   }, [settingsLoaded])
 
+  useEffect(() => {
+    if (step !== 6) return
+    const supabase = createSupabaseBrowserClient()
+    if (!supabase) return
+    setSuppliersLoading(true)
+    supabase
+      .from('master_suppliers')
+      .select('*')
+      .eq('active', true)
+      .order('name')
+      .then(({ data }) => {
+        setMasterSuppliers(data || [])
+        setSuppliersLoading(false)
+      })
+  }, [step])
+
+  async function handleSelectSupplier(supplier) {
+    if (selectedSupplierIds.has(supplier.id) || copyingId) return
+    setCopyingId(supplier.id)
+    try {
+      const res = await fetch('/api/catalogue/copy-from-master', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ supplier_id: supplier.id }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setSelectedSupplierIds((prev) => new Set([...prev, supplier.id]))
+        setCopiedCounts((prev) => ({ ...prev, [supplier.id]: data.count }))
+      }
+    } catch (e) {
+      console.error('Failed to copy parts:', e)
+    } finally {
+      setCopyingId(null)
+    }
+  }
+
   async function geocode(address) {
     if (!address.trim()) return
     setGeoLoading(true)
@@ -98,6 +142,11 @@ export default function SetupPage() {
   }
 
   async function saveStep(stepNum) {
+    // Step 6 (parts) — parts are copied via the Select button, Next just advances
+    if (stepNum === 6) {
+      setStep(7)
+      return
+    }
     setSaving(true)
     try {
       if (stepNum === 1) {
@@ -124,7 +173,7 @@ export default function SetupPage() {
       } else if (stepNum === 5) {
         await updateBusiness({ supplier_name: supplierName, supplier_email: supplierEmail })
         updateSettings({ supplier_name: supplierName, supplier_email: supplierEmail })
-      } else if (stepNum === 6) {
+      } else if (stepNum === 7) {
         await updateBusiness({ setup_complete: true })
         updateSettings({ setup_complete: true })
         router.push('/')
@@ -300,6 +349,85 @@ export default function SetupPage() {
 
         {step === 6 && (
           <>
+            <h2 style={{ fontSize: 22, fontWeight: 500, color: '#1F2D37', margin: '0 0 4px' }}>Your parts</h2>
+            <p style={{ fontSize: 16, color: '#4A5B68', margin: '0 0 24px' }}>Start with a pre-loaded catalogue from your supplier. You can edit prices and add your own parts anytime.</p>
+
+            {suppliersLoading ? (
+              <p style={{ fontSize: 14, color: '#8CA3A0', textAlign: 'center', padding: '24px 0' }}>Loading suppliers...</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+                {masterSuppliers.map((supplier) => {
+                  const isSelected = selectedSupplierIds.has(supplier.id)
+                  const isCopying = copyingId === supplier.id
+                  const count = copiedCounts[supplier.id]
+                  return (
+                    <div
+                      key={supplier.id}
+                      style={{
+                        background: isSelected ? '#E6F7F0' : '#F6F8F7',
+                        border: `1px solid ${isSelected ? '#C5E8D5' : '#E4EAE8'}`,
+                        borderRadius: 10,
+                        padding: 14,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                      }}
+                    >
+                      <div style={{ width: 44, height: 44, borderRadius: 8, background: '#22A67A', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+                        {supplier.logo_url ? (
+                          <img src={supplier.logo_url} alt={supplier.name} style={{ width: 44, height: 44, objectFit: 'contain' }} />
+                        ) : (
+                          <span style={{ color: '#FFFFFF', fontSize: 20, fontWeight: 700 }}>{supplier.name[0]}</span>
+                        )}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontSize: 16, fontWeight: 600, color: '#1F2D37', margin: '0 0 2px' }}>{supplier.name}</p>
+                        <p style={{ fontSize: 13, color: '#8CA3A0', margin: 0 }}>
+                          {count != null
+                            ? `${count} parts added to your catalogue`
+                            : `${supplier.parts_count} parts, tagged and ready`}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={isCopying || isSelected}
+                        onClick={() => handleSelectSupplier(supplier)}
+                        style={{
+                          minHeight: 44,
+                          minWidth: 88,
+                          borderRadius: 8,
+                          border: 'none',
+                          background: '#22A67A',
+                          color: '#FFFFFF',
+                          fontSize: 15,
+                          fontWeight: 500,
+                          cursor: isSelected ? 'default' : 'pointer',
+                          opacity: isCopying ? 0.6 : 1,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {isCopying ? 'Loading...' : isSelected ? '✓ Selected' : 'Select'}
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            <div style={{ textAlign: 'center', marginTop: 4 }}>
+              <button
+                type="button"
+                onClick={() => setStep(7)}
+                style={{ background: 'none', border: 'none', color: '#8CA3A0', fontSize: 13, cursor: 'pointer', padding: '8px 0' }}
+              >
+                Skip, I'll add my own
+              </button>
+            </div>
+          </>
+        )}
+
+        {step === 7 && (
+          <>
             <div style={{ textAlign: 'center', marginBottom: 24 }}>
               <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#E6F7F0', border: '2px solid #C5E8D5', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: 24, color: '#22A67A', fontWeight: 700 }}>
                 ✓
@@ -309,9 +437,9 @@ export default function SetupPage() {
             </div>
             <div style={{ background: '#F6F8F7', border: '1px solid #E4EAE8', borderRadius: 10, padding: 16, marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 10 }}>
               {[
-                'Add parts to your catalogue',
                 'Create your first job',
                 'Send your first quote',
+                'Add your cost prices to parts',
               ].map((item, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#22A67A', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -325,18 +453,18 @@ export default function SetupPage() {
         )}
 
         <div style={{ display: 'flex', gap: 10, marginTop: 28 }}>
-          {step > 1 && step < 6 && (
+          {step > 1 && step < 7 && (
             <button type="button" onClick={() => setStep(s => s - 1)} style={{ flex: 1, minHeight: 48, border: '1px solid #E4EAE8', borderRadius: 10, background: '#FFFFFF', color: '#4A5B68', fontSize: 17, fontWeight: 500, cursor: 'pointer' }}>
               Back
             </button>
           )}
           <button
             type="button"
-            disabled={saving}
+            disabled={saving || (step === 6 && !!copyingId)}
             onClick={() => saveStep(step)}
-            style={{ flex: step === 1 || step === 6 ? 1 : 2, minHeight: 48, borderRadius: 10, border: 'none', background: '#22A67A', color: '#FFFFFF', fontSize: 17, fontWeight: 500, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}
+            style={{ flex: step === 1 || step === 7 ? 1 : 2, minHeight: 48, borderRadius: 10, border: 'none', background: '#22A67A', color: '#FFFFFF', fontSize: 17, fontWeight: 500, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}
           >
-            {saving ? 'Saving...' : step === 6 ? 'Start using Jotey' : 'Next'}
+            {saving ? 'Saving...' : step === 7 ? 'Start using Jotey' : 'Next'}
           </button>
         </div>
       </div>
