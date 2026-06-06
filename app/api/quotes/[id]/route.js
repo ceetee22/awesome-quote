@@ -116,9 +116,10 @@ export async function PATCH(request, { params }) {
     return NextResponse.json({ ok: true, status: job.status })
   }
 
+  const now = new Date().toISOString()
   await supabase
     .from('jobs')
-    .update({ status: 'accepted', updated_at: new Date().toISOString() })
+    .update({ status: 'accepted', accepted_at: now, updated_at: now })
     .eq('id', id)
 
   return NextResponse.json({ ok: true, status: 'accepted' })

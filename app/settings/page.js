@@ -323,7 +323,7 @@ export default function SettingsPage() {
   const [editingZoneId, setEditingZoneId] = useState(null)
   const [editZoneState, setEditZoneState] = useState(null)
   const [deleteZoneId, setDeleteZoneId] = useState(null)
-  const [savedVisible, setSavedVisible] = useState(false)
+  const [saveStatus, setSaveStatus] = useState(null) // null | 'saving' | 'saved' | 'geocode_failed'
 
   const [rubberWastePct, setRubberWastePct] = useState(String(settings.rubber_waste_pct ?? 10))
   const [bands, setBands] = useState(settings.window_size_bands || [])
@@ -437,7 +437,32 @@ export default function SettingsPage() {
     setDeleteZoneId(null)
   }
 
-  function handleSave() {
+  async function handleSave() {
+    setSaveStatus('saving')
+
+    let homeLat = settings.home_base_lat ?? null
+    let homeLng = settings.home_base_lng ?? null
+
+    const addressChanged = form.home_base_address !== (settings.home_base_address || '')
+    const coordsMissing = homeLat == null || homeLng == null
+
+    let geocodeFailed = false
+    if (form.home_base_address && (addressChanged || coordsMissing)) {
+      setSaveStatus('geocoding')
+      try {
+        const res = await fetch(`/api/geocode?q=${encodeURIComponent(form.home_base_address)}`)
+        const data = await res.json()
+        if (Array.isArray(data) && data[0]) {
+          homeLat = parseFloat(data[0].lat)
+          homeLng = parseFloat(data[0].lon)
+        } else {
+          geocodeFailed = true
+        }
+      } catch {
+        // keep existing coords on network error
+      }
+    }
+
     updateSettings({
       business_name: form.business_name,
       trading_name: form.trading_name,
@@ -447,6 +472,8 @@ export default function SettingsPage() {
       business_phone: form.business_phone,
       business_email: form.business_email,
       home_base_address: form.home_base_address,
+      home_base_lat: homeLat,
+      home_base_lng: homeLng,
       hourly_labour_rate: parseFloat(form.hourly_labour_rate) || 85,
       default_markup_pct: parseFloat(form.default_markup_pct) || 50,
       gst_rate: parseFloat(form.gst_rate) || 15,
@@ -460,8 +487,9 @@ export default function SettingsPage() {
       rubber_waste_pct: parseFloat(rubberWastePct) || 10,
       window_size_bands: bands,
     })
-    setSavedVisible(true)
-    setTimeout(() => setSavedVisible(false), 2000)
+
+    setSaveStatus(geocodeFailed ? 'geocode_failed' : 'saved')
+    setTimeout(() => setSaveStatus(null), 3000)
   }
 
   return (
@@ -880,13 +908,14 @@ export default function SettingsPage() {
 
           {/* Save */}
           <div className="mt-aq-2xl flex flex-col gap-aq-sm">
-            <Button variant="primary" fullWidth onClick={handleSave}>
-              Save settings
+            <Button variant="primary" fullWidth onClick={handleSave} disabled={saveStatus === 'saving' || saveStatus === 'geocoding'}>
+              {saveStatus === 'geocoding' ? 'Locating address...' : saveStatus === 'saving' ? 'Saving...' : 'Save settings'}
             </Button>
-            {savedVisible && (
-              <p className="text-secondary font-medium text-aq-green text-center">
-                Settings saved
-              </p>
+            {saveStatus === 'saved' && (
+              <p className="text-secondary font-medium text-aq-green text-center">Settings saved</p>
+            )}
+            {saveStatus === 'geocode_failed' && (
+              <p className="text-secondary text-amber-600 text-center">Address not found. Check the home base address and try again.</p>
             )}
           </div>
 
