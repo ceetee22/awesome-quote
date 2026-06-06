@@ -14,6 +14,30 @@ A mobile-first PWA for a NZ joinery repair sole operator. He fixes hardware (hin
 4. **Cost price vs sell price.** Customer-facing outputs (quote, Xero invoice) use sell price. Purchase orders use cost price and supplier codes. Never show cost price to the customer.
 5. **The catalogue is the brain.** Diagnosis suggestions come from `fits` and `fixes` tags on parts. Keep that tagging logic central and well-tested.
 
+## Multi-tenancy rules
+
+This is a multi-tenant SaaS. Multiple businesses share the same database. Data isolation is non-negotiable. Every line of code that touches the database must follow these rules.
+
+1. **Never use the service role key for user-facing queries.** The service role key bypasses RLS entirely. It is ONLY for the admin panel (/admin) and system-level operations that genuinely need cross-business access. Every user-facing query must use the authenticated user's Supabase client so RLS is enforced.
+
+2. **Always scope by business_id explicitly.** Do not rely on RLS alone. Every SELECT, UPDATE, INSERT, and DELETE on a business-scoped table (jobs, parts, callout_zones, suppliers, job_items, job_item_parts) must include an explicit business_id filter or use get_my_business_id(). Belt and braces — RLS is the safety net, explicit filtering is the primary guard.
+
+3. **Never write unscoped updates.** Never use patterns like .not('id', 'is', null) or .update() without a WHERE clause that targets a specific row owned by the current user. Every update must filter by both the row ID and business ownership.
+
+4. **New user = empty data.** A new signup must see zero jobs, zero parts, zero quotes, zero stats. If a new user sees any data they did not create, there is a scoping bug. Test this after every auth or data change.
+
+5. **get_my_business_id() can return NULL.** For users who just signed up and have no business yet, this function returns NULL. Handle the NULL case gracefully — show empty states, redirect to setup, never fall back to another user's business.
+
+6. **Server components and API routes default to the user's session.** When creating a Supabase client in server components or API routes, always use createServerClient with the request cookies (the user's JWT). Never import or create a service role client unless the route is explicitly admin-only.
+
+7. **Test with two users after every data change.** After any migration, RLS policy change, or query change: log in as user A, verify their data. Log in as user B, verify their data. Confirm zero cross-contamination.
+
+8. **Tables that are business-scoped:** businesses, jobs, job_items, job_item_parts, parts, callout_zones, suppliers, travel_cache, weather_cache. Every query on these tables must be scoped.
+
+9. **Tables that are NOT business-scoped:** auth.users (managed by Supabase Auth). Never query auth.users directly from client code.
+
+10. **The admin panel is the only exception.** /admin routes use the service role key to read across all businesses. These routes are gated by ADMIN_USER_ID and must never be accessible to normal users.
+
 ## Tech conventions
 
 - PWA, mobile-first, responsive for desktop calendar
