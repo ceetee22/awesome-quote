@@ -247,7 +247,7 @@ export default function CustomItemPage() {
       fixes: selectedFixes,
       photos: beforePhotos,
     })
-    router.push(`/jobs/${params.id}/items`)
+    router.push(`/jobs/${params.id}/quote`)
   }
 
   const canAdd = description.trim().length > 0 || parts.length > 0
@@ -266,7 +266,7 @@ export default function CustomItemPage() {
 
           {/* Header */}
           <div className="flex items-center gap-aq-sm py-aq-xl">
-            <BackButton onClick={() => router.push(`/jobs/${params.id}/items`)} label="Items" />
+            <BackButton onClick={() => router.back()} label="Back" />
             <h1 className="text-page-title font-medium text-aq-ink ml-aq-sm">Custom item</h1>
           </div>
 

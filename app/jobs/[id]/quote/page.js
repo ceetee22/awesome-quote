@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useJob } from '@/lib/job-context'
 import { useSettings } from '@/lib/settings-context'
 import { formatCurrency, calcGst } from '@/lib/pricing'
+import { JOB_SOURCE, JOB_SOURCE_LABELS } from '@/lib/constants'
 import { generateQuotePdf, downloadBlob } from '@/lib/generate-quote-pdf'
 import Button from '@/components/Button'
 import BackButton from '@/components/BackButton'
@@ -87,7 +88,11 @@ export default function QuotePage() {
 
   const [parkingNoteShown, setParkingNoteShown] = useState(() => currentJob?.parking_note_shown ?? true)
 
+  const [customerName, setCustomerName] = useState(currentJob?.customer_name || '')
+  const [customerAddress, setCustomerAddress] = useState(currentJob?.customer_address || '')
+  const [customerPhone, setCustomerPhone] = useState(currentJob?.customer_phone || '')
   const [customerEmail, setCustomerEmail] = useState(currentJob?.customer_email || '')
+  const [source, setSource] = useState(currentJob?.source || JOB_SOURCE.DIRECT)
 
   const [sendModalOpen, setSendModalOpen] = useState(false)
   const [sendPhase, setSendPhase] = useState(null) // null | 'sending' | 'done' | 'error'
@@ -158,7 +163,16 @@ export default function QuotePage() {
       callout_fee: calloutFee,
       hourly_rate: hourlyRate,
       parking_note_shown: parkingNoteShown,
+      customer_name: customerName.trim(),
+      customer_address: customerAddress.trim(),
+      customer_phone: customerPhone.trim(),
+      source,
     }
+  }
+
+  function handleAcceptNow() {
+    setCurrentJob((prev) => prev ? { ...prev, ...baseJobUpdates(), status: 'accepted', schedule_state: 'unassigned' } : prev)
+    router.push(`/jobs/${params.id}`)
   }
 
   function removePart(key) {
@@ -198,7 +212,7 @@ export default function QuotePage() {
           pdf_base64: base64,
           filename,
           customer_email: email,
-          customer_name: currentJob.customer_name,
+          customer_name: customerName.trim() || currentJob.customer_name,
           accept_url: acceptanceUrl,
           business_name: settings.trading_name || settings.business_name,
           business_email: settings.business_email || '',
@@ -369,35 +383,77 @@ export default function QuotePage() {
         {/* Header */}
         <div className="flex items-center gap-aq-sm py-aq-xl">
           <BackButton
-            onClick={() => router.push(`/jobs/${params.id}/items`)}
-            label="Items"
+            onClick={() => router.back()}
+            label="Back"
           />
-          <h1 className="text-page-title font-medium text-aq-ink ml-aq-sm">
-            {isRevise ? `Revising quote (version ${newVersion})` : 'Quote builder'}
-          </h1>
+          <div className="ml-aq-sm">
+            <h1 className="text-page-title font-medium text-aq-ink">
+              {isRevise ? `Revising quote (v${newVersion})` : 'Quote'}
+            </h1>
+            <p className="text-secondary text-aq-muted">Add customer details to send</p>
+          </div>
         </div>
 
-        {/* Customer summary */}
+        {/* Customer details form */}
         <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg mb-aq-lg">
-          <p className="text-body font-medium text-aq-ink">{currentJob.customer_name}</p>
-          {currentJob.customer_address && (
-            <a
-              href={`https://maps.google.com/?q=${encodeURIComponent(currentJob.customer_address)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-secondary text-aq-muted hover:text-aq-green transition-colors block mt-aq-xs"
-            >
-              {currentJob.customer_address}
-            </a>
-          )}
-          {currentJob.customer_phone && (
-            <a
-              href={`tel:${currentJob.customer_phone}`}
-              className="text-secondary text-aq-muted hover:text-aq-green transition-colors block mt-aq-xs"
-            >
-              {currentJob.customer_phone}
-            </a>
-          )}
+          <h2 className="text-section font-medium text-aq-ink mb-aq-md">Customer details</h2>
+          <div className="flex flex-col gap-aq-md">
+            <div>
+              <label htmlFor="cust-name" className="block text-secondary text-aq-muted mb-aq-sm">Customer name</label>
+              <input
+                id="cust-name"
+                type="text"
+                autoComplete="name"
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                placeholder="e.g. Sarah Taufa"
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label htmlFor="cust-addr" className="block text-secondary text-aq-muted mb-aq-sm">Address</label>
+              <input
+                id="cust-addr"
+                type="text"
+                autoComplete="street-address"
+                value={customerAddress}
+                onChange={(e) => setCustomerAddress(e.target.value)}
+                placeholder="e.g. 14 Rata St, Papakura"
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label htmlFor="cust-phone" className="block text-secondary text-aq-muted mb-aq-sm">
+                Phone <span className="text-aq-subtle">(optional)</span>
+              </label>
+              <input
+                id="cust-phone"
+                type="tel"
+                autoComplete="tel"
+                value={customerPhone}
+                onChange={(e) => setCustomerPhone(e.target.value)}
+                placeholder="e.g. 021 123 4567"
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <p className="text-secondary text-aq-muted mb-aq-sm">Job source</p>
+              <div className="flex gap-aq-sm">
+                {[JOB_SOURCE.DIRECT, JOB_SOURCE.PROPERTY_MANAGER, JOB_SOURCE.BUILDER].map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setSource(s)}
+                    className={`flex-1 min-h-tap px-aq-md text-secondary font-medium rounded-aq-lg border transition-colors duration-150 ${
+                      source === s ? 'border-aq-green text-aq-green bg-aq-green-tint' : 'border-aq-border text-aq-muted bg-white hover:bg-aq-surface'
+                    }`}
+                  >
+                    {JOB_SOURCE_LABELS[s]}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Parts breakdown */}
@@ -553,12 +609,15 @@ export default function QuotePage() {
             </>
           ) : (
             <>
-              <Button variant="primary" fullWidth onClick={() => setSendModalOpen(true)}>
+              <Button variant="primary" fullWidth disabled={!customerName.trim()} onClick={() => setSendModalOpen(true)}>
                 Send quote
               </Button>
               <Button variant="secondary" fullWidth onClick={handleSaveDraft}>
                 Save draft
               </Button>
+              <button type="button" onClick={handleAcceptNow} className={btnGhost}>
+                Customer accepts now
+              </button>
             </>
           )}
         </div>
@@ -575,7 +634,7 @@ export default function QuotePage() {
         >
           <div className="bg-white rounded-aq-xl p-aq-xl w-full max-w-sm shadow-lg">
             <p className="text-body font-medium text-aq-ink mb-aq-xs">
-              Send quote to {currentJob.customer_name}
+              Send quote to {customerName || currentJob.customer_name}
             </p>
             <p className="text-secondary text-aq-muted mb-aq-lg">
               {formatCurrency(total)} incl. GST
@@ -624,7 +683,7 @@ export default function QuotePage() {
         >
           <div className="bg-white rounded-aq-xl p-aq-xl w-full max-w-sm shadow-lg">
             <p className="text-body font-medium text-aq-ink mb-aq-sm">
-              Send revised quote to {currentJob.customer_name}?
+              Send revised quote to {customerName || currentJob.customer_name}?
             </p>
             <p className="text-secondary text-aq-muted mb-aq-lg">
               The new total is {formatCurrency(total)}, up from {formatCurrency(originalTotal)}. They will need to accept again.

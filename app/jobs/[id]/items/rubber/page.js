@@ -222,7 +222,7 @@ export default function RubberEstimatorPage() {
       labour_hours: (prev.labour_hours || 0) + labourHours,
     }))
 
-    router.push(`/jobs/${params.id}/items`)
+    router.push(`/jobs/${params.id}/quote`)
   }
 
   const canAdd = totals.totalWindows > 0 && selectedRubber
@@ -241,8 +241,8 @@ export default function RubberEstimatorPage() {
 
           <div className="flex items-center gap-aq-sm py-aq-xl">
             <BackButton
-              onClick={() => router.push(`/jobs/${params.id}/items/add`)}
-              label="Add item"
+              onClick={() => router.back()}
+              label="Back"
             />
             <h1 className="text-page-title font-medium text-aq-ink ml-aq-sm">
               Rubber and weatherseal estimate
