@@ -3,20 +3,35 @@
 import { JobProvider } from '@/lib/job-context'
 import { SettingsProvider } from '@/lib/settings-context'
 import BottomNav from '@/components/BottomNav'
+import FeedbackButton from '@/components/FeedbackButton'
 import { usePathname, useRouter } from 'next/navigation'
 import { useSettings } from '@/lib/settings-context'
 import { useEffect } from 'react'
 
-function SetupGuard() {
+function Guards() {
   const { settings, settingsLoaded } = useSettings()
   const pathname = usePathname()
   const router = useRouter()
+
   useEffect(() => {
     if (!settingsLoaded) return
-    if (settings?.setup_complete === false && !pathname.startsWith('/setup')) {
+
+    // Deactivated check has highest priority
+    if (settings?.active === false && !pathname.startsWith('/deactivated')) {
+      router.push('/deactivated')
+      return
+    }
+
+    // Setup wizard redirect (skip if deactivated or already in setup/deactivated)
+    if (
+      settings?.setup_complete === false &&
+      !pathname.startsWith('/setup') &&
+      !pathname.startsWith('/deactivated')
+    ) {
       router.push('/setup')
     }
-  }, [settingsLoaded, settings?.setup_complete, pathname, router])
+  }, [settingsLoaded, settings?.active, settings?.setup_complete, pathname, router])
+
   return null
 }
 
@@ -25,9 +40,10 @@ export default function Providers({ children }) {
   return (
     <SettingsProvider>
       <JobProvider>
-        <SetupGuard />
+        <Guards />
         {children}
         {!pathname?.startsWith('/planner') && <BottomNav />}
+        <FeedbackButton />
       </JobProvider>
     </SettingsProvider>
   )

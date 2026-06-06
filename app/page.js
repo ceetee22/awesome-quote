@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useJob } from '@/lib/job-context'
 import { useSettings } from '@/lib/settings-context'
 import StatusBadge from '@/components/StatusBadge'
+import { getPartsCount, updateBusiness } from '@/lib/db'
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -271,11 +272,77 @@ function ActivityRow({ job }) {
   )
 }
 
+// ─── Onboarding checklist ──────────────────────────────────────────────────────
+
+const QUOTED_STATUSES = new Set(['quoted', 'accepted', 'ordered', 'scheduled', 'completed', 'invoiced'])
+
+function OnboardingChecklist({ settings, jobs, onComplete }) {
+  const [partsCount, setPartsCount] = useState(null)
+  const [completing, setCompleting] = useState(false)
+
+  useEffect(() => {
+    getPartsCount().then(setPartsCount)
+  }, [])
+
+  if (partsCount === null) return null
+  if (settings?.onboarding_complete) return null
+
+  const hasSetup = settings?.setup_complete === true
+  const hasParts = partsCount > 0
+  const hasJobs = jobs.length > 0
+  const hasSentQuote = jobs.some((j) => QUOTED_STATUSES.has(j.status))
+  const allDone = hasSetup && hasParts && hasJobs && hasSentQuote
+
+  if (allDone && !completing) {
+    setCompleting(true)
+    updateBusiness({ onboarding_complete: true }).then(onComplete)
+    return null
+  }
+
+  const items = [
+    { label: 'Set up your business', done: hasSetup, href: '/setup' },
+    { label: 'Add your first part', done: hasParts, href: '/catalogue' },
+    { label: 'Create your first job', done: hasJobs, href: '/jobs/new' },
+    { label: 'Send your first quote', done: hasSentQuote, href: '/quotes' },
+  ]
+
+  return (
+    <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E4EAE8', borderRadius: 12, padding: '16px 16px 18px', marginBottom: 16 }}>
+      <p style={{ fontSize: 11, fontWeight: 500, color: '#4A5B68', margin: '0 0 12px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+        Getting started
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {items.map(({ label, done, href }) => (
+          <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{
+              width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              backgroundColor: done ? '#22A67A' : 'transparent',
+              border: done ? 'none' : '2px solid #E4EAE8',
+            }}>
+              {done && (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              )}
+            </div>
+            {done ? (
+              <span style={{ fontSize: 14, color: '#8CA3A0', textDecoration: 'line-through' }}>{label}</span>
+            ) : (
+              <Link href={href} style={{ fontSize: 14, color: '#1F2D37', textDecoration: 'none' }}>{label}</Link>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
 export default function HomePage() {
   const { jobs } = useJob()
-  const { settings } = useSettings()
+  const { settings, updateSettings } = useSettings()
   const [greeting, setGreeting] = useState('')
   useEffect(() => { setGreeting(getGreeting()) }, [])
 
@@ -333,6 +400,13 @@ export default function HomePage() {
         >
           New job
         </Link>
+
+        {/* Onboarding checklist — shown until all 4 steps complete */}
+        <OnboardingChecklist
+          settings={settings}
+          jobs={jobs}
+          onComplete={() => updateSettings({ onboarding_complete: true })}
+        />
 
         {/* Stat cards — live counts */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 24 }}>
