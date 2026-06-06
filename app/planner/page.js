@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, Fragment } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -10,7 +10,10 @@ import {
   useDraggable,
   useDroppable,
 } from '@dnd-kit/core'
+import { IconSun, IconCloudRain, IconCloud, IconWind } from '@tabler/icons-react'
 import { computeDay, fmt } from '@/lib/cascade'
+import { coordKey, buildDayPairs, fetchTravelTimes } from '@/lib/travel'
+import { WEATHER_STYLES, isBadWeather, classifyJob, fetchWeather } from '@/lib/weather'
 import {
   getPlannerBacklog,
   getPlannerWeekJobs,
@@ -18,10 +21,25 @@ import {
   dbAssignJob,
   dbUnassignJob,
   dbBatchUpdateSchedule,
+  dbPinJobTime,
 } from '@/lib/db'
 import { useSettings } from '@/lib/settings-context'
 import { formatCurrency } from '@/lib/pricing'
-import { DURATION_PRESETS } from '@/lib/constants'
+
+// ─── Grid constants ────────────────────────────────────────────────────────────
+
+const PX_PER_MIN = 80 / 60
+const MIN_BLOCK_PX = 80
+const HOUR_LBL_W = 44
+
+// ─── Weather chip config ───────────────────────────────────────────────────────
+
+const WEATHER_CHIP = {
+  sun:   { bg: '#FEF7E6', text: '#854F0B', iconColor: '#E8940D', label: 'sunny',  Icon: IconSun       },
+  rain:  { bg: '#E8F1FB', text: '#185FA5', iconColor: '#3B82D6', label: 'rain',   Icon: IconCloudRain },
+  cloud: { bg: '#F1EFE8', text: '#4A5B68', iconColor: '#8CA3A0', label: 'cloudy', Icon: IconCloud     },
+  windy: { bg: '#EEF1F0', text: '#4A5B68', iconColor: '#4A5B68', label: 'windy',  Icon: IconWind      },
+}
 
 // ─── Date helpers ──────────────────────────────────────────────────────────────
 
@@ -47,15 +65,26 @@ function toDateStr(d) {
   return `${y}-${m}-${day}`
 }
 
-function formatDayHeader(d) {
+function formatDayLabel(d) {
   return d.toLocaleDateString('en-NZ', { weekday: 'short', day: 'numeric', month: 'short' })
 }
 
-function formatWeekRange(monday) {
-  const sun = addDays(monday, 6)
-  const a = monday.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })
-  const b = sun.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' })
+function formatWeekRange(start) {
+  const end = addDays(start, 6)
+  const a = start.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })
+  const b = end.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' })
   return `${a} to ${b}`
+}
+
+function formatDayFull(d) {
+  return d.toLocaleDateString('en-NZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+}
+
+function fmtHour(min) {
+  const h24 = Math.floor(min / 60)
+  const ampm = h24 < 12 ? 'am' : 'pm'
+  const h = h24 % 12 || 12
+  return `${h}${ampm}`
 }
 
 function daysAgo(isoDate) {
@@ -89,28 +118,50 @@ function compassLabel(bearing) {
 
 // ─── Cascade helper ────────────────────────────────────────────────────────────
 
-function recomputeDayJobs(jobs, ps) {
-  if (!jobs.length) return []
-  const input = jobs.map((job) => ({
-    id: job.id,
-    durationMin: (job.estimated_duration || 1) * 60,
-    bufferMin: ps.default_buffer_minutes ?? 10,
-    travelMinFromPrev: 0, // TODO(Phase 2): use travel_cache / Distance Matrix
-  }))
-  const { legs, longDay, finish } = computeDay(input, {
+function recomputeDayJobs(jobs, ps, travelMap = {}, homeLat = null, homeLng = null) {
+  if (!jobs.length) {
+    return { jobs: [], legs: [], longDay: false, finish: '', finishMin: null, leaveHome: '', leaveHomeMin: null, totalDriveMin: 0 }
+  }
+  const input = jobs.map((job, i) => {
+    let travelMin = 0
+    if (i === 0 && homeLat != null && homeLng != null && job.customer_lat != null && job.customer_lng != null) {
+      const ok = coordKey(homeLat, homeLng)
+      const dk = coordKey(job.customer_lat, job.customer_lng)
+      travelMin = travelMap[`${ok}|${dk}`] ?? 0
+    } else if (i > 0) {
+      const prev = jobs[i - 1]
+      if (prev.customer_lat != null && prev.customer_lng != null && job.customer_lat != null && job.customer_lng != null) {
+        const ok = coordKey(prev.customer_lat, prev.customer_lng)
+        const dk = coordKey(job.customer_lat, job.customer_lng)
+        travelMin = travelMap[`${ok}|${dk}`] ?? 0
+      }
+    }
+    return {
+      id: job.id,
+      durationMin: (job.estimated_duration || 1) * 60,
+      bufferMin: ps.default_buffer_minutes ?? 10,
+      travelMinFromPrev: travelMin,
+      startOverrideMin: job.start_overridden === true ? job.start_minute : undefined,
+    }
+  })
+  const result = computeDay(input, {
     dayStartMin: ps.day_start_minute ?? 480,
     dayEndTargetMin: ps.day_end_target_minute ?? null,
     defaultBufferMin: ps.default_buffer_minutes ?? 10,
   })
   return {
-    jobs: jobs.map((job, i) => ({ ...job, sequence_index: i, start_minute: legs[i].startMin })),
-    legs,
-    longDay,
-    finish,
+    jobs: jobs.map((job, i) => ({ ...job, sequence_index: i, start_minute: result.legs[i].startMin })),
+    legs: result.legs,
+    longDay: result.longDay,
+    finish: result.finish,
+    finishMin: result.finishMin,
+    leaveHome: result.leaveHome,
+    leaveHomeMin: result.leaveHomeMin,
+    totalDriveMin: result.totalDriveMin,
   }
 }
 
-// ─── Value helper ──────────────────────────────────────────────────────────────
+// ─── Value + summary helpers ───────────────────────────────────────────────────
 
 function calcJobValue(job) {
   const parts = (job.job_items || []).flatMap((i) => i.job_item_parts || [])
@@ -122,7 +173,7 @@ function calcJobValue(job) {
 
 function jobSummary(job) {
   const items = job.job_items || []
-  if (!items.length) return 'No items'
+  if (!items.length) return ''
   const labels = items.map((it) =>
     it.type === 'diagnosed'
       ? (it.joinery_type_label || it.fault_label || 'Diagnosed item')
@@ -132,16 +183,95 @@ function jobSummary(job) {
   return `${labels[0]}, ${labels[1]} +${labels.length - 2} more`
 }
 
-// ─── Draggable card ────────────────────────────────────────────────────────────
+function durLabel(dur) {
+  return dur === 0.5 ? '30 min' : dur === 1 ? '1 hr' : dur === 1.5 ? '1.5 hr' : `${dur} hr`
+}
 
-function DraggableCard({ id, data, children, className = '' }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id, data })
+// ─── Pill button (shared toggle style) ────────────────────────────────────────
+
+function PillBtn({ active, onClick, children, small = false }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        background: active ? '#22A67A' : '#FFFFFF',
+        color: active ? '#FFFFFF' : '#4A5B68',
+        border: `1px solid ${active ? '#22A67A' : '#E4EAE8'}`,
+        borderRadius: 8,
+        padding: small ? '6px 12px' : '5px 14px',
+        fontSize: 13,
+        fontWeight: 500,
+        cursor: 'pointer',
+        whiteSpace: 'nowrap',
+        lineHeight: 1.4,
+        transition: 'background 0.12s, color 0.12s',
+      }}
+    >
+      {children}
+    </button>
+  )
+}
+
+// ─── BacklogCard ───────────────────────────────────────────────────────────────
+
+function BacklogCardContent({ job, ghost = false }) {
+  const area = getArea(job.customer_address)
+  const age = daysAgo(job.accepted_at || job.created_at)
+  const isRebook = job.schedule_state === 'needs_rebooking'
+  const value = calcJobValue(job)
+  const summary = jobSummary(job)
+  return (
+    <div style={{
+      backgroundColor: ghost ? '#FFFFFF' : '#F4FBF8',
+      borderTop: '1px solid #E4EAE8',
+      borderRight: '1px solid #E4EAE8',
+      borderBottom: '1px solid #E4EAE8',
+      borderLeft: ghost ? '4px solid #22A67A' : isRebook ? '4px solid #E8940D' : '1px solid #E4EAE8',
+      borderRadius: 8,
+      padding: '12px 14px',
+      boxShadow: ghost ? '0 8px 24px rgba(0,0,0,0.18)' : 'none',
+      userSelect: 'none',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
+        <p style={{ fontSize: 15, fontWeight: 600, color: '#1F2D37', lineHeight: 1.3, margin: 0, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {job.customer_name}
+        </p>
+        <span style={{ flexShrink: 0, fontSize: 11, fontWeight: 600, color: '#FFFFFF', backgroundColor: isRebook ? '#E8940D' : '#22A67A', borderRadius: 4, padding: '3px 8px', whiteSpace: 'nowrap' }}>
+          {isRebook ? 'Rebook' : 'Accepted'}
+        </span>
+      </div>
+      {area ? (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13, fontWeight: 400, color: '#8CA3A0', backgroundColor: '#F6F8F7', borderRadius: 4, padding: '2px 7px', marginBottom: 6 }}>
+          <span style={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: '#C5C9C7', flexShrink: 0 }} />
+          {area}
+        </span>
+      ) : null}
+      {summary ? (
+        <p style={{ fontSize: 13, color: '#4A5B68', margin: '6px 0 0', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+          {summary}
+        </p>
+      ) : null}
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 6 }}>
+        <p style={{ fontSize: 13, color: age > 10 ? '#E8940D' : '#8CA3A0', margin: 0 }}>
+          {age === 0 ? 'Accepted today' : `${age} day${age === 1 ? '' : 's'} ago`}
+        </p>
+        <p style={{ fontSize: 15, fontWeight: 600, color: '#22A67A', margin: 0 }}>{formatCurrency(value)}</p>
+      </div>
+    </div>
+  )
+}
+
+function BacklogCard({ job }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `backlog::${job.id}`,
+    data: { job, source: 'backlog' },
+  })
   return (
     <div
       ref={setNodeRef}
       {...attributes}
       {...listeners}
-      className={className}
       style={{
         transform: transform ? `translate3d(${transform.x}px,${transform.y}px,0)` : undefined,
         opacity: isDragging ? 0.35 : 1,
@@ -149,108 +279,344 @@ function DraggableCard({ id, data, children, className = '' }) {
         touchAction: 'none',
       }}
     >
-      {children}
+      <BacklogCardContent job={job} />
     </div>
   )
 }
 
-// ─── Droppable column ──────────────────────────────────────────────────────────
+// ─── TimeBlock ─────────────────────────────────────────────────────────────────
 
-function DroppableColumn({ id, children, className = '' }) {
-  const { setNodeRef, isOver } = useDroppable({ id })
+function TimeBlock({ job, dateStr, gridStartMin, leftPad, onJobClick, isDay }) {
+  const startMin = job.start_minute ?? gridStartMin
+  const durationMin = (job.estimated_duration || 1) * 60
+  const topPx = (startMin - gridStartMin) * PX_PER_MIN
+  const heightPx = Math.max(durationMin * PX_PER_MIN, MIN_BLOCK_PX)
+  const summary = jobSummary(job)
+  const dl = durLabel(job.estimated_duration || 1)
+  const isRebook = job.schedule_state === 'needs_rebooking'
+  const suburb = isDay ? getArea(job.customer_address) : null
+
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `time::${dateStr}::${job.id}`,
+    data: { job, source: 'time-block', date: dateStr, originalStartMin: startMin },
+  })
+
+  const downPos = useRef(null)
+
+  function handlePointerDown(e) {
+    downPos.current = { x: e.clientX, y: e.clientY }
+    listeners.onPointerDown?.(e)
+  }
+
+  function handleClick(e) {
+    if (!onJobClick || !downPos.current) return
+    const dx = e.clientX - downPos.current.x
+    const dy = e.clientY - downPos.current.y
+    if (Math.sqrt(dx * dx + dy * dy) > 6) return
+    e.stopPropagation()
+    onJobClick(job, { x: e.clientX, y: e.clientY })
+  }
+
   return (
     <div
       ref={setNodeRef}
-      className={`${className} transition-colors duration-100 ${isOver ? 'bg-[#E6F7F0]' : ''}`}
+      {...attributes}
+      {...listeners}
+      onPointerDown={handlePointerDown}
+      onClick={handleClick}
+      style={{
+        position: 'absolute',
+        top: topPx,
+        height: heightPx,
+        left: leftPad + 2,
+        right: 2,
+        transform: transform ? `translate3d(${transform.x}px,${transform.y}px,0)` : undefined,
+        opacity: isDragging ? 0.35 : 1,
+        cursor: isDragging ? 'grabbing' : 'grab',
+        touchAction: 'none',
+        zIndex: isDragging ? 30 : 2,
+        backgroundColor: '#E6F7F0',
+        borderTop: '1px solid #C5E8D5',
+        borderRight: '1px solid #C5E8D5',
+        borderBottom: '1px solid #C5E8D5',
+        borderLeft: `4px solid ${isRebook ? '#E8940D' : '#22A67A'}`,
+        borderRadius: '2px 6px 6px 2px',
+        padding: isDay ? '10px 12px' : '8px',
+        boxSizing: 'border-box',
+        overflow: 'hidden',
+        willChange: 'transform',
+      }}
     >
-      {children}
-    </div>
-  )
-}
-
-// ─── Backlog card ──────────────────────────────────────────────────────────────
-
-function BacklogCard({ job, ghost = false }) {
-  const area = getArea(job.customer_address)
-  const age = daysAgo(job.accepted_at || job.created_at)
-  const isRebook = job.schedule_state === 'needs_rebooking'
-  const value = calcJobValue(job)
-  const summary = jobSummary(job)
-
-  const card = (
-    <div
-      className={`bg-white border rounded-xl p-3 select-none ${
-        ghost ? 'shadow-xl border-aq-green' : 'border-[#E4EAE8] hover:border-[#22A67A]'
-      } transition-colors`}
-    >
-      <div className="flex items-start justify-between gap-2 mb-1">
-        <p className="text-[13px] font-medium text-[#1F2D37] leading-snug">{job.customer_name}</p>
-        <span
-          className={`shrink-0 text-[11px] font-medium px-2 py-0.5 rounded-full ${
-            isRebook
-              ? 'bg-amber-100 text-amber-700'
-              : 'bg-[#E6F7F0] text-[#22A67A]'
-          }`}
-        >
-          {isRebook ? 'Rebook' : 'Accepted'}
-        </span>
-      </div>
-      {area ? (
-        <span className="inline-block text-[11px] bg-[#F6F8F7] border border-[#E4EAE8] rounded px-1.5 py-0.5 text-[#4A5B68] mb-1">
-          {area}
-        </span>
-      ) : null}
-      <p className="text-[12px] text-[#4A5B68] leading-snug mb-1 line-clamp-2">{summary}</p>
-      <p className={`text-[11px] mb-1 ${age > 10 ? 'text-amber-600' : 'text-[#8CA3A0]'}`}>
-        Accepted {age === 0 ? 'today' : `${age} day${age === 1 ? '' : 's'} ago`}
-      </p>
-      <p className="text-[12px] font-medium text-[#1F2D37]">{formatCurrency(value)}</p>
-    </div>
-  )
-
-  if (ghost) return card
-  return (
-    <DraggableCard
-      id={`backlog::${job.id}`}
-      data={{ job, source: 'backlog' }}
-    >
-      {card}
-    </DraggableCard>
-  )
-}
-
-// ─── Day job card ──────────────────────────────────────────────────────────────
-
-function DayJobCard({ job, date, ghost = false }) {
-  const dur = job.estimated_duration || 1
-  const durLabel = dur === 0.5 ? '30m' : dur === 1 ? '1hr' : dur === 1.5 ? '1.5hr' : `${dur}hr`
-  const slotLabel = job.slot === 'afternoon' ? 'Afternoon' : 'Morning'
-
-  const card = (
-    <div
-      className={`bg-white border rounded-lg p-2.5 select-none ${
-        ghost ? 'shadow-xl border-aq-green' : 'border-[#E4EAE8] hover:border-[#22A67A]'
-      } transition-colors`}
-    >
-      <p className="text-[12px] font-medium text-[#1F2D37] leading-snug mb-0.5 truncate">
-        {job.customer_name}
-      </p>
-      {job.start_minute != null ? (
-        <p className="text-[11px] text-[#22A67A]">{fmt(job.start_minute)} · {durLabel}</p>
+      {isDay ? (
+        <>
+          <span style={{ fontSize: 14, fontWeight: 500, color: '#22A67A', lineHeight: 1 }}>
+            {fmt(startMin)}
+          </span>
+          {' '}
+          <span style={{ fontSize: 12, color: '#8CA3A0', lineHeight: 1 }}>{dl}</span>
+          <p style={{ fontSize: 15, fontWeight: 600, color: '#1F2D37', margin: '4px 0 0', lineHeight: 1.3 }}>
+            {job.customer_name}
+          </p>
+          {(summary || suburb) && (
+            <p style={{ fontSize: 13, color: '#4A5B68', margin: '4px 0 0', lineHeight: 1.3 }}>
+              {[summary, suburb].filter(Boolean).join(' · ')}
+            </p>
+          )}
+          <span style={{ position: 'absolute', bottom: 6, left: 16, fontSize: 10, fontWeight: 600, color: '#8CA3A0', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            {isRebook ? 'REBOOK' : 'CONFIRMED'}
+          </span>
+        </>
       ) : (
-        <p className="text-[11px] text-[#8CA3A0]">{slotLabel} · {durLabel}</p>
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4, marginBottom: 2 }}>
+            <span style={{ fontSize: 12, fontWeight: 500, color: '#22A67A', lineHeight: 1 }}>
+              {fmt(startMin)}
+            </span>
+            <span style={{ fontSize: 10, color: '#8CA3A0', lineHeight: 1 }}>{dl}</span>
+          </div>
+          <p style={{ fontSize: 13, fontWeight: 600, color: '#1F2D37', margin: 0, lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {job.customer_name}
+          </p>
+          {summary && (
+            <p style={{ fontSize: 11, color: '#4A5B68', margin: '3px 0 0', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {summary}
+            </p>
+          )}
+          <span style={{ position: 'absolute', bottom: 5, left: 8, fontSize: 9, fontWeight: 600, color: '#8CA3A0', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            {isRebook ? 'REBOOK' : 'CONFIRMED'}
+          </span>
+        </>
       )}
     </div>
   )
+}
 
-  if (ghost) return card
+// ─── TimeGridColumnBody ────────────────────────────────────────────────────────
+
+function TimeGridColumnBody({ dateStr, jobs, legs, leaveHome, leaveHomeMin, finishMin, finish, longDay, totalDriveMin, gridStartMin, gridEndMin, showHourLabels, topFlat, onJobClick }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `day::${dateStr}` })
+  const gridHeight = (gridEndMin - gridStartMin) * PX_PER_MIN
+  const leftPad = showHourLabels ? HOUR_LBL_W : 0
+
+  const hours = []
+  for (let m = gridStartMin; m <= gridEndMin; m += 60) hours.push(m)
+
+  if (jobs.length === 0) {
+    return (
+      <div
+        ref={setNodeRef}
+        style={{
+          flex: 1, minWidth: 0, height: gridHeight, position: 'relative',
+          backgroundColor: isOver ? '#E6F7F0' : 'transparent',
+          borderLeft: `1.5px dashed ${isOver ? '#22A67A' : '#C5E8D5'}`,
+          borderRight: `1.5px dashed ${isOver ? '#22A67A' : '#C5E8D5'}`,
+          borderBottom: `1.5px dashed ${isOver ? '#22A67A' : '#C5E8D5'}`,
+          borderTop: topFlat ? 'none' : `1.5px dashed ${isOver ? '#22A67A' : '#C5E8D5'}`,
+          borderRadius: topFlat ? '0 0 10px 10px' : 10,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}
+      >
+        <span style={{ fontSize: 13, color: '#8CA3A0', textAlign: 'center' }}>↓ Drop a job here</span>
+      </div>
+    )
+  }
+
   return (
-    <DraggableCard
-      id={`day::${date}::${job.id}`}
-      data={{ job, source: 'day', date }}
+    <div
+      ref={setNodeRef}
+      style={{
+        flex: 1, minWidth: 0, height: gridHeight, position: 'relative',
+        backgroundColor: '#FFFFFF',
+        borderLeft: '0.5px solid #E4EAE8',
+        borderRight: '0.5px solid #E4EAE8',
+        borderBottom: '0.5px solid #E4EAE8',
+        borderTop: topFlat ? 'none' : '0.5px solid #E4EAE8',
+        borderRadius: topFlat ? '0 0 10px 10px' : 10,
+        overflow: 'hidden',
+      }}
     >
-      {card}
-    </DraggableCard>
+      {/* Hour lines */}
+      {hours.map((m) => (
+        <div
+          key={m}
+          style={{
+            position: 'absolute',
+            top: (m - gridStartMin) * PX_PER_MIN,
+            left: leftPad,
+            right: 0,
+            borderTop: m === gridStartMin ? 'none' : '1px solid #E4EAE8',
+            pointerEvents: 'none',
+          }}
+        />
+      ))}
+
+      {/* Hour labels (day view only) */}
+      {showHourLabels && hours.map((m) => (
+        <div
+          key={`lbl-${m}`}
+          style={{
+            position: 'absolute',
+            top: (m - gridStartMin) * PX_PER_MIN - 8,
+            left: 0,
+            width: HOUR_LBL_W - 6,
+            textAlign: 'right',
+            fontSize: 11,
+            color: '#8CA3A0',
+            pointerEvents: 'none',
+            lineHeight: 1,
+          }}
+        >
+          {fmtHour(m)}
+        </div>
+      ))}
+
+      {/* Leave home marker */}
+      {leaveHomeMin != null && (legs?.[0]?.travelMin ?? 0) > 0 && (() => {
+        const topPx = Math.max(4, (leaveHomeMin - gridStartMin) * PX_PER_MIN)
+        return (
+          <div
+            style={{
+              position: 'absolute',
+              top: topPx - 14,
+              left: leftPad + 4, right: 4,
+              pointerEvents: 'none',
+            }}
+          >
+            <span style={{ fontSize: showHourLabels ? 13 : 11, fontWeight: 500, color: '#22A67A', whiteSpace: 'nowrap' }}>
+              Leave home {leaveHome}{showHourLabels && (legs?.[0]?.travelMin ?? 0) > 0 ? ` · ${legs[0].travelMin} min to first job` : ''}
+            </span>
+          </div>
+        )
+      })()}
+
+      {/* Travel gaps */}
+      {jobs.map((job, idx) => {
+        if (idx === 0) return null
+        const leg = legs?.[idx]
+        if (!leg || (leg.travelMin ?? 0) === 0) return null
+        const prevJob = jobs[idx - 1]
+        const prevEnd = (prevJob.start_minute ?? gridStartMin) + (prevJob.estimated_duration || 1) * 60
+        const thisStart = job.start_minute ?? prevEnd
+        const gapMin = thisStart - prevEnd
+        if (gapMin <= 0) return null
+        const gapTop = (prevEnd - gridStartMin) * PX_PER_MIN
+        const gapH = Math.max(gapMin * PX_PER_MIN, 18)
+        return (
+          <div
+            key={`gap-${job.id}`}
+            style={{
+              position: 'absolute',
+              top: gapTop,
+              left: leftPad + 4, right: 4,
+              height: gapH,
+              borderLeft: '2px dashed #C5E8D5',
+              marginLeft: 12,
+              padding: '8px 0',
+              paddingLeft: 8,
+              display: 'flex', alignItems: 'center',
+              pointerEvents: 'none',
+              zIndex: 2,
+            }}
+          >
+            <span style={{ fontSize: 10, color: '#8CA3A0', whiteSpace: 'nowrap' }}>
+              {leg.travelMin} + {leg.bufferMin} min
+            </span>
+          </div>
+        )
+      })}
+
+      {/* Job blocks */}
+      {jobs.map((job) => (
+        <TimeBlock
+          key={job.id}
+          job={job}
+          dateStr={dateStr}
+          gridStartMin={gridStartMin}
+          leftPad={leftPad}
+          onJobClick={onJobClick}
+          isDay={showHourLabels}
+        />
+      ))}
+
+      {/* Finish readout */}
+      {finishMin != null && (
+        <div
+          style={{
+            position: 'absolute',
+            top: (finishMin - gridStartMin) * PX_PER_MIN + 4,
+            left: leftPad + 2, right: 2,
+            backgroundColor: '#F6F8F7',
+            border: '1px solid #E4EAE8',
+            borderRadius: 6,
+            padding: '6px 10px',
+            pointerEvents: 'none',
+          }}
+        >
+          <span style={{ fontSize: 11, color: '#8CA3A0' }}>
+            Done {finish}
+          </span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── HourAxis (shared, week view only) ────────────────────────────────────────
+
+function HourAxis({ gridStartMin, gridEndMin }) {
+  const gridHeight = (gridEndMin - gridStartMin) * PX_PER_MIN
+  const hours = []
+  for (let m = gridStartMin; m <= gridEndMin; m += 60) hours.push(m)
+
+  return (
+    <div style={{ width: HOUR_LBL_W, flexShrink: 0, height: gridHeight, position: 'relative' }}>
+      {hours.map((m) => (
+        <div
+          key={m}
+          style={{
+            position: 'absolute',
+            top: (m - gridStartMin) * PX_PER_MIN - 8,
+            right: 6,
+            fontSize: 11,
+            color: '#8CA3A0',
+            whiteSpace: 'nowrap',
+            lineHeight: 1,
+          }}
+        >
+          {fmtHour(m)}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ─── DayHeader chip ────────────────────────────────────────────────────────────
+
+function DayHeader({ date, dateStr, weather }) {
+  const todayStr = toDateStr(new Date())
+  const isToday = dateStr === todayStr
+  const w = weather?.[dateStr]
+  const chip = w ? WEATHER_CHIP[w.condition] : null
+  return (
+    <div style={{
+      backgroundColor: isToday ? '#22A67A' : '#1F2D37',
+      padding: '12px 14px',
+    }}>
+      <p style={{ fontSize: 11, fontWeight: 500, color: isToday ? 'rgba(255,255,255,0.75)' : '#7A9490', margin: 0, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+        {date.toLocaleDateString('en-NZ', { weekday: 'short' })}
+      </p>
+      <p style={{ fontSize: 18, fontWeight: 600, color: '#FFFFFF', margin: '2px 0 0', lineHeight: 1 }}>
+        {date.getDate()}
+      </p>
+      {chip && (
+        <p style={{ margin: '5px 0 0' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 500, padding: '2px 6px', borderRadius: 4, backgroundColor: chip.bg, color: chip.text, whiteSpace: 'nowrap' }}>
+            <chip.Icon size={14} color={chip.iconColor} stroke={1.5} />
+            {w.temp_c} {chip.label}
+          </span>
+        </p>
+      )}
+    </div>
   )
 }
 
@@ -258,37 +624,45 @@ function DayJobCard({ job, date, ghost = false }) {
 
 const DURATION_OPTIONS = [
   { value: 0.5, label: '30 min' },
-  { value: 1,   label: '1 hr' },
+  { value: 1,   label: '1 hr'   },
   { value: 1.5, label: '1.5 hr' },
-  { value: 2,   label: '2 hr+' },
+  { value: 2,   label: '2 hr+'  },
 ]
 
-function DropModal({ job, date, dayJobs, plannerSettings, onConfirm, onCancel }) {
+function DropModal({ job, date, dayJobs, plannerSettings, dayWeather, initialStartMin, onConfirm, onCancel }) {
   const [duration, setDuration] = useState(1)
-  const [slot, setSlot] = useState('morning')
+  const [overrideMin, setOverrideMin] = useState(initialStartMin ?? null)
+  const [slot, setSlot] = useState(
+    initialStartMin != null ? (initialStartMin >= 13 * 60 ? 'afternoon' : 'morning') : 'morning'
+  )
+  const [showSlotPicker, setShowSlotPicker] = useState(false)
+
+  const { exposed: autoExposed } = classifyJob(job)
+  const [isExposed, setIsExposed] = useState(autoExposed)
 
   const dateLabel = date
     ? new Date(date + 'T00:00:00').toLocaleDateString('en-NZ', { weekday: 'long', day: 'numeric', month: 'long' })
     : ''
+  const dayName = date
+    ? new Date(date + 'T00:00:00').toLocaleDateString('en-NZ', { weekday: 'long' })
+    : ''
 
-  // Compute preview start time using cascade
   const previewStart = (() => {
     const existingInput = (dayJobs || []).map((j) => ({
       id: j.id,
       durationMin: (j.estimated_duration || 1) * 60,
       bufferMin: plannerSettings.default_buffer_minutes ?? 10,
-      travelMinFromPrev: 0, // TODO(Phase 2): Distance Matrix
+      travelMinFromPrev: 0,
     }))
     const newEntry = {
       id: '__preview__',
       durationMin: duration * 60,
       bufferMin: plannerSettings.default_buffer_minutes ?? 10,
       travelMinFromPrev: 0,
-      startOverrideMin: slot === 'afternoon' ? 780 : undefined,
+      startOverrideMin: overrideMin ?? (slot === 'afternoon' ? 780 : undefined),
     }
-    const input = [...existingInput, newEntry]
     try {
-      const { legs } = computeDay(input, {
+      const { legs } = computeDay([...existingInput, newEntry], {
         dayStartMin: plannerSettings.day_start_minute ?? 480,
         dayEndTargetMin: plannerSettings.day_end_target_minute ?? null,
         defaultBufferMin: plannerSettings.default_buffer_minutes ?? 10,
@@ -299,73 +673,132 @@ function DropModal({ job, date, dayJobs, plannerSettings, onConfirm, onCancel })
     }
   })()
 
+  const summary = jobSummary(job)
+
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-6"
-      style={{ backgroundColor: 'rgba(31,45,55,0.5)' }}
+      style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: 'rgba(31,45,55,0.5)' }}
       role="dialog"
       aria-modal="true"
     >
-      <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
-        <p className="text-[15px] font-medium text-[#1F2D37] mb-1">
-          Schedule {job.customer_name}
+      <div style={{ backgroundColor: '#FFF', borderRadius: 12, padding: 18, width: '100%', maxWidth: 360, boxShadow: '0 16px 48px rgba(0,0,0,0.22)' }}>
+        <p style={{ fontSize: 18, fontWeight: 500, color: '#1F2D37', margin: '0 0 4px' }}>
+          Set up this job
         </p>
-        <p className="text-[13px] text-[#4A5B68] mb-5">{dateLabel}</p>
+        {summary && (
+          <p style={{ fontSize: 13, color: '#4A5B68', margin: '0 0 12px', lineHeight: 1.4 }}>{summary}</p>
+        )}
 
-        <p className="text-[12px] font-medium text-[#4A5B68] mb-2">Duration</p>
-        <div className="flex gap-2 mb-5">
+        {/* Day chip */}
+        <div style={{ display: 'inline-flex', alignItems: 'center', backgroundColor: '#F6F8F7', borderRadius: 8, padding: '4px 10px', marginBottom: 16 }}>
+          <span style={{ fontSize: 13, fontWeight: 500, color: '#1F2D37' }}>{dateLabel}</span>
+        </div>
+
+        {/* Duration presets */}
+        <p style={{ fontSize: 12, fontWeight: 500, color: '#4A5B68', margin: '0 0 8px' }}>Duration</p>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
           {DURATION_OPTIONS.map((opt) => (
             <button
               key={opt.value}
               type="button"
               onClick={() => setDuration(opt.value)}
-              className={`flex-1 min-h-[44px] text-[13px] font-medium rounded-lg border transition-colors duration-150 ${
-                duration === opt.value
-                  ? 'border-[#22A67A] bg-[#E6F7F0] text-[#22A67A]'
-                  : 'border-[#E4EAE8] text-[#4A5B68] bg-white hover:bg-[#F6F8F7]'
-              }`}
+              style={{
+                flex: 1, minHeight: 44, fontSize: 13, fontWeight: 500, borderRadius: 8,
+                border: `1px solid ${duration === opt.value ? '#22A67A' : '#E4EAE8'}`,
+                backgroundColor: duration === opt.value ? '#22A67A' : '#FFF',
+                color: duration === opt.value ? '#FFF' : '#4A5B68',
+                cursor: 'pointer', transition: 'all 0.12s',
+              }}
             >
               {opt.label}
             </button>
           ))}
         </div>
 
-        <p className="text-[12px] font-medium text-[#4A5B68] mb-2">Slot</p>
-        <div className="flex gap-2 mb-5">
-          {[{ value: 'morning', label: 'Morning' }, { value: 'afternoon', label: 'Afternoon' }].map((s) => (
-            <button
-              key={s.value}
-              type="button"
-              onClick={() => setSlot(s.value)}
-              className={`flex-1 min-h-[44px] text-[13px] font-medium rounded-lg border transition-colors duration-150 ${
-                slot === s.value
-                  ? 'border-[#22A67A] bg-[#E6F7F0] text-[#22A67A]'
-                  : 'border-[#E4EAE8] text-[#4A5B68] bg-white hover:bg-[#F6F8F7]'
-              }`}
-            >
-              {s.label}
-            </button>
-          ))}
-        </div>
-
+        {/* Start time preview */}
         {previewStart && (
-          <p className="text-[12px] text-[#4A5B68] mb-5">
-            Estimated start: <span className="font-medium text-[#1F2D37]">{previewStart}</span>
-          </p>
+          <div style={{ backgroundColor: '#E6F7F0', border: '1px solid #C5E8D5', borderRadius: 8, padding: '8px 12px', marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 13, color: '#22A67A', fontWeight: 500 }}>
+                Starts around {previewStart}
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowSlotPicker((v) => !v)}
+                style={{ fontSize: 12, color: '#1D8F68', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500, padding: 0 }}
+              >
+                Change start time
+              </button>
+            </div>
+            {showSlotPicker && (
+              <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                {[{ value: 'morning', label: 'Morning' }, { value: 'afternoon', label: 'Afternoon' }].map((s) => (
+                  <button
+                    key={s.value}
+                    type="button"
+                    onClick={() => {
+                      setSlot(s.value)
+                      setOverrideMin(s.value === 'afternoon' ? 13 * 60 : plannerSettings.day_start_minute ?? 480)
+                    }}
+                    style={{
+                      flex: 1, minHeight: 36, fontSize: 13, fontWeight: 500, borderRadius: 8,
+                      border: `1px solid ${slot === s.value ? '#22A67A' : '#E4EAE8'}`,
+                      backgroundColor: slot === s.value ? '#22A67A' : '#FFF',
+                      color: slot === s.value ? '#FFF' : '#4A5B68',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         )}
 
-        <div className="flex flex-col gap-2">
+        {/* Weather hint */}
+        {dayWeather && isBadWeather(dayWeather.condition) && (
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={isExposed}
+                onChange={(e) => setIsExposed(e.target.checked)}
+                style={{ marginTop: 2, width: 16, height: 16, flexShrink: 0, accentColor: '#22A67A' }}
+              />
+              <span style={{ fontSize: 12, color: '#4A5B68', lineHeight: 1.4 }}>
+                This job leaves a window or door open to the weather
+              </span>
+            </label>
+            {isExposed && (
+              <div style={{ marginTop: 8, backgroundColor: '#E8F1FB', border: '1px solid #B5D4F4', borderRadius: 8, padding: '8px 12px' }}>
+                <p style={{ fontSize: 12, color: '#1E40AF', margin: 0, lineHeight: 1.4 }}>
+                  {dayName} looks {dayWeather.condition === 'rain' ? 'wet' : 'windy'}. A {dayWeather.condition === 'rain' ? 'drier' : 'calmer'} day might work better for this one.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Buttons */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <button
             type="button"
-            onClick={() => onConfirm({ duration, slot })}
-            className="w-full min-h-[48px] bg-[#22A67A] text-white font-medium rounded-xl hover:bg-[#1D8F68] transition-colors duration-150"
+            onClick={() => onConfirm({ duration, slot, overrideMin })}
+            style={{
+              width: '100%', minHeight: 48, backgroundColor: '#22A67A', color: '#FFF',
+              fontWeight: 500, fontSize: 15, borderRadius: 10, border: 'none', cursor: 'pointer',
+            }}
           >
-            Confirm
+            Add to {dayName || 'day'}
           </button>
           <button
             type="button"
             onClick={onCancel}
-            className="w-full min-h-[48px] bg-white text-[#4A5B68] font-medium rounded-xl border border-[#E4EAE8] hover:bg-[#F6F8F7] transition-colors duration-150"
+            style={{
+              width: '100%', minHeight: 48, backgroundColor: '#FFF', color: '#4A5B68',
+              fontWeight: 500, fontSize: 15, borderRadius: 10, border: '1px solid #E4EAE8', cursor: 'pointer',
+            }}
           >
             Cancel
           </button>
@@ -375,19 +808,115 @@ function DropModal({ job, date, dayJobs, plannerSettings, onConfirm, onCancel })
   )
 }
 
+// ─── Job detail panel ─────────────────────────────────────────────────────────
+
+function JobDetailPanel({ job, pos, onClose }) {
+  const value = calcJobValue(job)
+  const items = job.job_items || []
+  const panelW = 280
+
+  const left = Math.min(pos.x + 16, (typeof window !== 'undefined' ? window.innerWidth : 800) - panelW - 16)
+  const top = Math.min(pos.y, (typeof window !== 'undefined' ? window.innerHeight : 600) - 320)
+
+  return (
+    <>
+      <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={onClose} />
+      <div
+        style={{
+          position: 'fixed',
+          left: Math.max(8, left),
+          top: Math.max(8, top),
+          width: panelW,
+          zIndex: 41,
+          backgroundColor: '#FFF',
+          borderRadius: 12,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+          border: '0.5px solid #E4EAE8',
+          padding: '14px 16px',
+        }}
+      >
+        {/* Name + close */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8 }}>
+          <p style={{ fontSize: 16, fontWeight: 500, color: '#1F2D37', margin: 0, lineHeight: 1.3, flex: 1, minWidth: 0 }}>
+            {job.customer_name}
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8CA3A0', fontSize: 20, lineHeight: 1, padding: '0 0 0 8px', flexShrink: 0 }}
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Status badge */}
+        <span style={{
+          display: 'inline-flex', fontSize: 11, fontWeight: 500, color: '#FFF',
+          backgroundColor: job.schedule_state === 'needs_rebooking' ? '#E8940D' : '#22A67A',
+          borderRadius: 4, padding: '2px 7px', marginBottom: 10,
+        }}>
+          {job.schedule_state === 'needs_rebooking' ? 'Needs rebooking' : 'Scheduled'}
+        </span>
+
+        {/* Phone */}
+        {job.customer_phone && (
+          <div style={{ marginBottom: 6 }}>
+            <a
+              href={`tel:${job.customer_phone}`}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 14, color: '#1D6DBF', textDecoration: 'none' }}
+            >
+              {job.customer_phone}
+            </a>
+          </div>
+        )}
+
+        {/* Address */}
+        {job.customer_address && (
+          <div style={{ marginBottom: 10 }}>
+            <a
+              href={`https://maps.google.com/?q=${encodeURIComponent(job.customer_address)}`}
+              target="_blank"
+              rel="noreferrer"
+              style={{ display: 'inline-flex', alignItems: 'flex-start', gap: 5, fontSize: 13, color: '#1D6DBF', textDecoration: 'none', lineHeight: 1.4 }}
+            >
+              {job.customer_address}
+            </a>
+          </div>
+        )}
+
+        {/* Items */}
+        {items.length > 0 && (
+          <div style={{ marginBottom: 8 }}>
+            {items.map((item) => (
+              <p key={item.id} style={{ fontSize: 12, color: '#4A5B68', margin: '0 0 3px', lineHeight: 1.4 }}>
+                {item.type === 'diagnosed'
+                  ? [item.joinery_type_label, item.fault_label].filter(Boolean).join(' — ')
+                  : (item.description || 'Custom item')}
+              </p>
+            ))}
+          </div>
+        )}
+
+        <div style={{ borderTop: '0.5px solid #E4EAE8', margin: '8px 0' }} />
+
+        {/* Value */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 12, color: '#8CA3A0' }}>Est. value</span>
+          <span style={{ fontSize: 15, fontWeight: 500, color: '#22A67A' }}>{formatCurrency(value)}</span>
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ─── Month heatmap ─────────────────────────────────────────────────────────────
 
-const HEAT_CLASSES = [
-  'bg-white',
-  'bg-[#C5E8D5]',
-  'bg-[#22A67A]/40',
-  'bg-[#22A67A]/70',
-]
-
-function MonthHeatmap({ year, month, counts }) {
+function MonthHeatmap({ year, month, counts, weather = {} }) {
   const monthName = new Date(year, month, 1).toLocaleDateString('en-NZ', { month: 'long', year: 'numeric' })
+  const todayMs = (() => { const t = new Date(); t.setHours(0, 0, 0, 0); return t.getTime() })()
+  const forecastCutoffMs = todayMs + 7 * 86400000
 
-  // Build full grid of days (Mon–Sat, weeks)
   const firstDay = new Date(year, month, 1)
   const lastDay = new Date(year, month + 1, 0)
   const gridStart = getMonday(firstDay)
@@ -395,51 +924,97 @@ function MonthHeatmap({ year, month, counts }) {
 
   const cells = []
   let cur = new Date(gridStart)
-  while (cur <= gridEnd) {
-    cells.push(new Date(cur))
-    cur = addDays(cur, 1)
-  }
+  while (cur <= gridEnd) { cells.push(new Date(cur)); cur = addDays(cur, 1) }
 
-  const DAY_HEADERS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-
-  // Group into weeks
   const weeks = []
-  for (let i = 0; i < cells.length; i += 7) {
-    weeks.push(cells.slice(i, i + 7))
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7))
+
+  function heatBg(count) {
+    if (count === 0) return '#FFFFFF'
+    if (count === 1) return '#E6F7F0'
+    if (count <= 3) return 'rgba(34,166,122,0.35)'
+    return '#FEF7E6'
+  }
+  function heatBorder(count) {
+    if (count === 0) return '#E4EAE8'
+    if (count === 1) return '#C5E8D5'
+    if (count <= 3) return '#22A67A55'
+    return '#F5E2B0'
   }
 
   return (
-    <div className="p-6">
-      <p className="text-[14px] font-medium text-[#1F2D37] mb-4">{monthName}</p>
-      <div className="grid grid-cols-7 gap-1 mb-1">
-        {DAY_HEADERS.map((h) => (
-          <div key={h} className="text-center text-[11px] text-[#8CA3A0] font-medium py-1">{h}</div>
+    <div style={{ padding: 24 }}>
+      <p style={{ fontSize: 14, fontWeight: 500, color: '#1F2D37', margin: '0 0 16px' }}>{monthName}</p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4, marginBottom: 4 }}>
+        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((h) => (
+          <div key={h} style={{ textAlign: 'center', fontSize: 11, fontWeight: 500, color: '#8CA3A0', padding: '4px 0' }}>{h}</div>
         ))}
       </div>
       {weeks.map((week, wi) => (
-        <div key={wi} className="grid grid-cols-7 gap-1 mb-1">
+        <div key={wi} style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4, marginBottom: 4 }}>
           {week.map((d) => {
             const ds = toDateStr(d)
             const count = counts[ds] || 0
-            const heatIdx = Math.min(count, 3)
             const isCurrentMonth = d.getMonth() === month
+            const dMs = d.getTime()
+            const dayW = (dMs >= todayMs && dMs < forecastCutoffMs) ? weather[ds] : null
             return (
               <div
                 key={ds}
-                className={`rounded-lg p-2 text-center ${HEAT_CLASSES[heatIdx]} ${
-                  !isCurrentMonth ? 'opacity-30' : ''
-                }`}
+                style={{
+                  borderRadius: 8,
+                  padding: '6px 4px',
+                  textAlign: 'center',
+                  backgroundColor: heatBg(count),
+                  border: `1px solid ${heatBorder(count)}`,
+                  opacity: isCurrentMonth ? 1 : 0.3,
+                }}
               >
-                <p className="text-[12px] font-medium text-[#1F2D37]">{d.getDate()}</p>
+                <p style={{ fontSize: 12, fontWeight: 500, color: '#1F2D37', margin: 0 }}>{d.getDate()}</p>
                 {count > 0 && (
-                  <p className="text-[10px] text-[#22A67A] font-medium">{count}</p>
+                  <p style={{ fontSize: 10, fontWeight: 500, color: '#22A67A', margin: 0 }}>{count}</p>
                 )}
+                {dayW && WEATHER_CHIP[dayW.condition] && (() => {
+                  const wc = WEATHER_CHIP[dayW.condition]
+                  return (
+                    <p style={{ margin: '3px 0 0', display: 'flex', justifyContent: 'center' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 9, fontWeight: 500, padding: '1px 4px', borderRadius: 3, backgroundColor: wc.bg, color: wc.text, whiteSpace: 'nowrap' }}>
+                        <wc.Icon size={10} color={wc.iconColor} stroke={1.5} />
+                        {dayW.temp_c}
+                      </span>
+                    </p>
+                  )
+                })()}
               </div>
             )
           })}
         </div>
       ))}
-      <p className="text-[11px] text-[#8CA3A0] mt-4">Read-only view. Switch to week to drag and schedule jobs.</p>
+
+      {/* Legend */}
+      <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
+        {[
+          { label: 'Open', bg: '#FFFFFF', border: '#E4EAE8' },
+          { label: 'Light', bg: '#E6F7F0', border: '#C5E8D5' },
+          { label: 'Busy', bg: 'rgba(34,166,122,0.35)', border: '#22A67A55' },
+          { label: 'Full', bg: '#FEF7E6', border: '#F5E2B0' },
+        ].map((item) => (
+          <span
+            key={item.label}
+            style={{
+              fontSize: 11, color: '#4A5B68',
+              backgroundColor: item.bg,
+              border: `1px solid ${item.border}`,
+              borderRadius: 6, padding: '3px 10px',
+            }}
+          >
+            {item.label}
+          </span>
+        ))}
+      </div>
+      <p style={{ fontSize: 11, color: '#8CA3A0', marginTop: 12 }}>
+        Switch to week or day view to drag and schedule jobs.
+      </p>
     </div>
   )
 }
@@ -449,9 +1024,9 @@ function MonthHeatmap({ year, month, counts }) {
 export default function PlannerPage() {
   const { settings } = useSettings()
   const plannerSettings = {
-    day_start_minute:      settings?.day_start_minute      ?? 480,
-    day_end_target_minute: settings?.day_end_target_minute ?? null,
-    default_buffer_minutes:settings?.default_buffer_minutes ?? 10,
+    day_start_minute:       settings?.day_start_minute       ?? 480,
+    day_end_target_minute:  settings?.day_end_target_minute  ?? null,
+    default_buffer_minutes: settings?.default_buffer_minutes ?? 10,
   }
 
   const [windowWidth, setWindowWidth] = useState(null)
@@ -462,18 +1037,23 @@ export default function PlannerPage() {
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
-  const [backlog, setBacklog]       = useState([])
-  const [weekDays, setWeekDays]     = useState({}) // { dateStr: job[] }
-  const [weekStart, setWeekStart]   = useState(() => getMonday(new Date()))
-  const [view, setView]             = useState('week') // 'week' | 'month'
-  const [backlogSort, setBacklogSort] = useState('oldest') // 'oldest' | 'area'
-  const [loading, setLoading]       = useState(true)
-  const [monthCounts, setMonthCounts] = useState({})
-
-  // DnD state
-  const [activeItem, setActiveItem] = useState(null) // { job, source, date }
-  const [pendingDrop, setPendingDrop] = useState(null) // { job, date }
+  const [backlog, setBacklog]           = useState([])
+  const [weekDays, setWeekDays]         = useState({})
+  const [weekStart, setWeekStart]       = useState(() => getMonday(new Date()))
+  const [view, setView]                 = useState('week')
+  const [backlogSort, setBacklogSort]   = useState('oldest')
+  const [loading, setLoading]           = useState(true)
+  const [monthCounts, setMonthCounts]   = useState({})
+  const [dayTravelMaps, setDayTravelMaps] = useState({})
+  const [weather, setWeather]           = useState({})
+  const [activeItem, setActiveItem]     = useState(null)
+  const [pendingDrop, setPendingDrop]   = useState(null)
   const [dropModalOpen, setDropModalOpen] = useState(false)
+  const [selectedJob, setSelectedJob]   = useState(null)
+  const [panelPos, setPanelPos]         = useState(null)
+
+  const homeLat = settings?.home_base_lat ?? null
+  const homeLng = settings?.home_base_lng ?? null
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
@@ -481,13 +1061,13 @@ export default function PlannerPage() {
 
   // ── Load data ──────────────────────────────────────────────────────────────
 
-  const loadWeek = useCallback(async (monday) => {
+  const loadWeek = useCallback(async (start) => {
     setLoading(true)
-    const start = toDateStr(monday)
-    const end   = toDateStr(addDays(monday, 6))
+    setDayTravelMaps({})
+    const rangeEnd = view === 'day' ? start : addDays(start, 6)
     const [bl, wj] = await Promise.all([
       getPlannerBacklog(),
-      getPlannerWeekJobs(start, end),
+      getPlannerWeekJobs(toDateStr(start), toDateStr(rangeEnd)),
     ])
     setBacklog(bl)
     const map = {}
@@ -498,42 +1078,70 @@ export default function PlannerPage() {
     })
     setWeekDays(map)
     setLoading(false)
-  }, [])
+  }, [view])
 
   useEffect(() => { loadWeek(weekStart) }, [weekStart, loadWeek])
+
+  useEffect(() => {
+    if (homeLat == null || homeLng == null) return
+    const datesWithJobs = Object.keys(weekDays).filter((d) => (weekDays[d] || []).length > 0)
+    if (!datesWithJobs.length) return
+    let cancelled = false
+    ;(async () => {
+      const allPairs = []
+      const seen = new Set()
+      for (const date of datesWithJobs) {
+        for (const p of buildDayPairs(weekDays[date] || [], homeLat, homeLng)) {
+          const k = `${p.olat},${p.olng}|${p.dlat},${p.dlng}`
+          if (!seen.has(k)) { seen.add(k); allPairs.push(p) }
+        }
+      }
+      if (!allPairs.length || cancelled) return
+      const travelMap = await fetchTravelTimes(allPairs)
+      if (cancelled) return
+      setDayTravelMaps((prev) => {
+        const next = { ...prev }
+        for (const date of datesWithJobs) next[date] = { ...(prev[date] || {}), ...travelMap }
+        return next
+      })
+    })()
+    return () => { cancelled = true }
+  }, [weekDays, homeLat, homeLng])
+
+  useEffect(() => {
+    const lat = settings?.home_base_lat
+    const lng = settings?.home_base_lng
+    if (lat == null || lng == null) return
+    let cancelled = false
+    fetchWeather(lat, lng).then((map) => { if (!cancelled) setWeather(map) })
+    return () => { cancelled = true }
+  }, [settings?.home_base_lat, settings?.home_base_lng])
 
   useEffect(() => {
     if (view !== 'month') return
     const y = weekStart.getFullYear()
     const m = weekStart.getMonth()
-    const start = toDateStr(new Date(y, m, 1))
-    const end   = toDateStr(new Date(y, m + 1, 0))
-    getPlannerMonthCounts(start, end).then(setMonthCounts)
+    getPlannerMonthCounts(
+      toDateStr(new Date(y, m, 1)),
+      toDateStr(new Date(y, m + 1, 0))
+    ).then(setMonthCounts)
   }, [view, weekStart])
 
-  // ── Sorted backlog ─────────────────────────────────────────────────────────
+  // ── Computed: sorted backlog ───────────────────────────────────────────────
 
-  // Always FIFO — directional grouping re-sorts inside backlogDisplay
   const sortedBacklog = [...backlog].sort((a, b) =>
     new Date(a.accepted_at || a.created_at).getTime() - new Date(b.accepted_at || b.created_at).getTime()
   )
 
-  // Flat list of headings + job items used by the grouped render path
   const backlogDisplay = (() => {
     if (backlogSort !== 'area') return sortedBacklog.map((j) => ({ type: 'job', job: j }))
-
-    const homeLat = settings?.home_base_lat
-    const homeLng = settings?.home_base_lng
-
     if (homeLat != null && homeLng != null) {
-      // Directional grouping: compass bearing from home base → job
       const tagged = sortedBacklog.map((job) => ({
         job,
         dir: job.customer_lat != null && job.customer_lng != null
           ? compassLabel(getBearing(homeLat, homeLng, job.customer_lat, job.customer_lng))
           : 'Unknown area',
       }))
-      // Sort by compass order (clockwise N→NE→…), FIFO within each direction
       tagged.sort((a, b) => {
         const ai = a.dir === 'Unknown area' ? 99 : COMPASS.indexOf(a.dir)
         const bi = b.dir === 'Unknown area' ? 99 : COMPASS.indexOf(b.dir)
@@ -543,40 +1151,44 @@ export default function PlannerPage() {
       const items = []
       let lastDir = null
       for (const { job, dir } of tagged) {
-        if (dir !== lastDir) {
-          items.push({ type: 'heading', area: dir })
-          lastDir = dir
-        }
+        if (dir !== lastDir) { items.push({ type: 'heading', area: dir }); lastDir = dir }
         items.push({ type: 'job', job })
       }
       return items
     }
-
-    // Fallback: suburb grouping when home base coordinates are not set
-    const items = [{ type: 'notice', text: 'Set home base coordinates in Settings to enable direction grouping.' }]
+    const items = [{ type: 'notice', text: 'Set home base in Settings to enable direction grouping.' }]
     let lastArea = null
     for (const job of sortedBacklog) {
       const area = getArea(job.customer_address) || 'Unknown area'
-      if (area !== lastArea) {
-        items.push({ type: 'heading', area })
-        lastArea = area
-      }
+      if (area !== lastArea) { items.push({ type: 'heading', area }); lastArea = area }
       items.push({ type: 'job', job })
     }
     return items
   })()
 
-  // ── Week columns ───────────────────────────────────────────────────────────
+  // ── Computed: week columns ─────────────────────────────────────────────────
 
-  const weekColumns = Array.from({ length: 7 }, (_, i) => {
-    const d = addDays(weekStart, i)
-    const ds = toDateStr(d)
-    const jobs = weekDays[ds] || []
-    const { longDay, finish } = jobs.length
-      ? recomputeDayJobs(jobs, plannerSettings)
-      : { longDay: false, finish: '' }
-    return { date: d, dateStr: ds, jobs, longDay, finish }
+  const weekColumns = Array.from({ length: view === 'day' ? 1 : 7 }, (_, i) => {
+    const d   = addDays(weekStart, i)
+    const ds  = toDateStr(d)
+    const rawJobs   = weekDays[ds] || []
+    const travelMap = dayTravelMaps[ds] || {}
+    const result = rawJobs.length
+      ? recomputeDayJobs(rawJobs, plannerSettings, travelMap, homeLat, homeLng)
+      : { jobs: [], legs: [], longDay: false, finish: '', finishMin: null, leaveHome: '', leaveHomeMin: null, totalDriveMin: 0 }
+    return { date: d, dateStr: ds, ...result }
   })
+
+  const gridStartMin = plannerSettings.day_start_minute ?? 480
+  const gridEndMin = (() => {
+    let max = 18 * 60
+    for (const col of weekColumns) {
+      if (!col.finishMin) continue
+      const extended = col.finishMin + 60
+      if (extended > max) max = extended
+    }
+    return max
+  })()
 
   // ── DnD handlers ──────────────────────────────────────────────────────────
 
@@ -584,311 +1196,277 @@ export default function PlannerPage() {
     setActiveItem(active.data.current)
   }
 
-  function handleDragEnd({ active, over }) {
+  function handleDragEnd({ active, over, delta }) {
     setActiveItem(null)
-    if (!over) return
+    if (!active?.data?.current) return
 
     const { job, source, date: fromDate } = active.data.current
-    const toId = over.id
 
     if (source === 'backlog') {
-      if (toId === 'backlog') return
-      const toDate = toId.replace('day::', '')
-      setPendingDrop({ job, date: toDate })
-      setDropModalOpen(true)
-    } else {
-      // source === 'day'
-      if (toId === 'backlog') {
-        commitUnassign(job, fromDate)
-      } else {
-        const toDate = toId.replace('day::', '')
-        if (fromDate !== toDate) commitMoveDay(job, fromDate, toDate)
+      if (!over || over.id === 'backlog') return
+      const toDate = over.id.replace('day::', '')
+      let dropMin = null
+      const translated = active.rect?.current?.translated
+      if (translated && over.rect) {
+        const dropY = translated.top - over.rect.top
+        const raw = gridStartMin + dropY / PX_PER_MIN
+        const snapped = Math.round(raw / 15) * 15
+        dropMin = Math.max(gridStartMin, Math.min(snapped, 22 * 60))
       }
+      setPendingDrop({ job, date: toDate, dropMin })
+      setDropModalOpen(true)
+      return
+    }
+
+    if (source === 'time-block') {
+      if (!over || over.id === 'backlog') {
+        commitUnassign(job, fromDate)
+        return
+      }
+      const toDate = over.id.replace('day::', '')
+      const originalStartMin = active.data.current.originalStartMin ?? plannerSettings.day_start_minute
+      const rawNewStart = originalStartMin + delta.y / PX_PER_MIN
+      const snappedStart = Math.round(rawNewStart / 15) * 15
+      const clampedStart = Math.max(plannerSettings.day_start_minute ?? 480, snappedStart)
+      const changed = toDate !== fromDate || clampedStart !== originalStartMin
+      if (changed) commitTimePinJob(job, fromDate, toDate, clampedStart)
+      return
+    }
+
+    // legacy day-card source (unassign back to backlog)
+    if (!over) return
+    if (over.id === 'backlog') commitUnassign(job, fromDate)
+    else {
+      const toDate = over.id.replace('day::', '')
+      if (fromDate !== toDate) commitMoveDay(job, fromDate, toDate)
     }
   }
 
   // ── Commit operations ──────────────────────────────────────────────────────
 
-  async function commitAssign(job, date, { duration, slot }) {
+  async function commitAssign(job, date, { duration, slot, overrideMin }) {
     const existing = weekDays[date] || []
     const newJob = {
       ...job,
-      schedule_state: 'assigned',
-      scheduled_date: date,
-      slot,
-      estimated_duration: duration,
+      schedule_state: 'assigned', scheduled_date: date, slot, estimated_duration: duration,
+      ...(overrideMin != null ? { start_minute: overrideMin, start_overridden: true } : {}),
     }
     const allJobs = [...existing, newJob]
-    const { jobs: recomputed } = recomputeDayJobs(allJobs, plannerSettings)
-
-    // Optimistic update
-    setWeekDays((prev) => ({ ...prev, [date]: recomputed }))
+    setWeekDays((prev) => ({ ...prev, [date]: allJobs }))
     setBacklog((prev) => prev.filter((j) => j.id !== job.id))
-
-    // Persist — roll back to DB state if the write fails
+    const { jobs: recomputed } = recomputeDayJobs(allJobs, plannerSettings, dayTravelMaps[date] || {}, homeLat, homeLng)
     const assigned = recomputed[recomputed.length - 1]
     const err = await dbAssignJob(job.id, {
-      scheduled_date: date,
-      slot,
-      estimated_duration: duration,
-      sequence_index: assigned.sequence_index,
-      start_minute: assigned.start_minute,
+      scheduled_date: date, slot, estimated_duration: duration,
+      sequence_index: assigned.sequence_index, start_minute: assigned.start_minute,
+      start_overridden: overrideMin != null,
     })
     if (err) { loadWeek(weekStart); return }
-
-    // Cascade start_minutes for existing jobs on that day
-    const existingUpdates = recomputed.slice(0, -1).map((j) => ({
-      id: j.id,
-      sequence_index: j.sequence_index,
-      start_minute: j.start_minute,
-    }))
-    if (existingUpdates.length) await dbBatchUpdateSchedule(existingUpdates)
+    const otherUpdates = recomputed.slice(0, -1).map((j) => ({ id: j.id, sequence_index: j.sequence_index, start_minute: j.start_minute }))
+    if (otherUpdates.length) await dbBatchUpdateSchedule(otherUpdates)
   }
 
   async function commitUnassign(job, fromDate) {
     const remaining = (weekDays[fromDate] || []).filter((j) => j.id !== job.id)
-    const { jobs: recomputed } = remaining.length
-      ? recomputeDayJobs(remaining, plannerSettings)
-      : { jobs: [] }
-
-    const unassigned = {
-      ...job,
-      schedule_state: 'unassigned',
-      scheduled_date: null,
-      slot: null,
-      sequence_index: null,
-      start_minute: null,
-    }
-
-    setWeekDays((prev) => ({ ...prev, [fromDate]: recomputed }))
-    setBacklog((prev) => {
-      const next = [...prev, unassigned]
-      return next.sort((a, b) =>
-        new Date(a.accepted_at || a.created_at).getTime() -
-        new Date(b.accepted_at || b.created_at).getTime()
-      )
-    })
-
+    const unassigned = { ...job, schedule_state: 'unassigned', scheduled_date: null, slot: null, sequence_index: null, start_minute: null }
+    setWeekDays((prev) => ({ ...prev, [fromDate]: remaining }))
+    setBacklog((prev) => [...prev, unassigned].sort((a, b) =>
+      new Date(a.accepted_at || a.created_at).getTime() - new Date(b.accepted_at || b.created_at).getTime()
+    ))
     const err = await dbUnassignJob(job.id)
     if (err) { loadWeek(weekStart); return }
-    if (recomputed.length) await dbBatchUpdateSchedule(recomputed.map((j) => ({
-      id: j.id,
-      sequence_index: j.sequence_index,
-      start_minute: j.start_minute,
-    })))
+    if (remaining.length) {
+      const { jobs: recomputed } = recomputeDayJobs(remaining, plannerSettings, dayTravelMaps[fromDate] || {}, homeLat, homeLng)
+      await dbBatchUpdateSchedule(recomputed.map((j) => ({ id: j.id, sequence_index: j.sequence_index, start_minute: j.start_minute })))
+    }
   }
 
   async function commitMoveDay(job, fromDate, toDate) {
     const fromJobs = (weekDays[fromDate] || []).filter((j) => j.id !== job.id)
-    const toJobs   = [...(weekDays[toDate]   || []), { ...job, scheduled_date: toDate }]
-
+    const toJobs   = [...(weekDays[toDate] || []), { ...job, scheduled_date: toDate }]
+    setWeekDays((prev) => ({ ...prev, [fromDate]: fromJobs, [toDate]: toJobs }))
     const { jobs: fromRecomputed } = fromJobs.length
-      ? recomputeDayJobs(fromJobs, plannerSettings)
+      ? recomputeDayJobs(fromJobs, plannerSettings, dayTravelMaps[fromDate] || {}, homeLat, homeLng)
       : { jobs: [] }
-    const { jobs: toRecomputed } = recomputeDayJobs(toJobs, plannerSettings)
-
-    setWeekDays((prev) => ({
-      ...prev,
-      [fromDate]: fromRecomputed,
-      [toDate]:   toRecomputed,
-    }))
-
+    const { jobs: toRecomputed } = recomputeDayJobs(toJobs, plannerSettings, dayTravelMaps[toDate] || {}, homeLat, homeLng)
     const moved = toRecomputed.find((j) => j.id === job.id)
     const err = await dbAssignJob(job.id, {
-      scheduled_date: toDate,
-      slot: job.slot,
-      estimated_duration: job.estimated_duration,
+      scheduled_date: toDate, slot: job.slot, estimated_duration: job.estimated_duration,
       sequence_index: moved?.sequence_index ?? toRecomputed.length - 1,
-      start_minute: moved?.start_minute ?? null,
+      start_minute: moved?.start_minute ?? null, start_overridden: false,
     })
     if (err) { loadWeek(weekStart); return }
-
-    const fromUpdates = fromRecomputed.map((j) => ({ id: j.id, sequence_index: j.sequence_index, start_minute: j.start_minute }))
-    const toUpdates   = toRecomputed.filter((j) => j.id !== job.id).map((j) => ({ id: j.id, sequence_index: j.sequence_index, start_minute: j.start_minute }))
-    const allUpdates  = [...fromUpdates, ...toUpdates]
+    const allUpdates = [
+      ...fromRecomputed.map((j) => ({ id: j.id, sequence_index: j.sequence_index, start_minute: j.start_minute })),
+      ...toRecomputed.filter((j) => j.id !== job.id).map((j) => ({ id: j.id, sequence_index: j.sequence_index, start_minute: j.start_minute })),
+    ]
     if (allUpdates.length) await dbBatchUpdateSchedule(allUpdates)
+  }
+
+  async function commitTimePinJob(job, fromDate, toDate, newStartMin) {
+    if (fromDate === toDate) {
+      const updatedJobs = (weekDays[fromDate] || []).map((j) =>
+        j.id === job.id ? { ...j, start_minute: newStartMin, start_overridden: true } : j
+      )
+      setWeekDays((prev) => ({ ...prev, [fromDate]: updatedJobs }))
+      const err = await dbPinJobTime(job.id, newStartMin)
+      if (err) { loadWeek(weekStart); return }
+      const { jobs: recomputed } = recomputeDayJobs(updatedJobs, plannerSettings, dayTravelMaps[fromDate] || {}, homeLat, homeLng)
+      const otherUpdates = recomputed
+        .filter((j) => j.id !== job.id)
+        .map((j) => ({ id: j.id, sequence_index: j.sequence_index, start_minute: j.start_minute }))
+      if (otherUpdates.length) await dbBatchUpdateSchedule(otherUpdates)
+    } else {
+      const fromJobs = (weekDays[fromDate] || []).filter((j) => j.id !== job.id)
+      const movedJob = { ...job, scheduled_date: toDate, start_minute: newStartMin, start_overridden: true }
+      const toJobs   = [...(weekDays[toDate] || []), movedJob]
+      setWeekDays((prev) => ({ ...prev, [fromDate]: fromJobs, [toDate]: toJobs }))
+      const err = await dbAssignJob(job.id, {
+        scheduled_date: toDate, slot: job.slot, estimated_duration: job.estimated_duration,
+        sequence_index: toJobs.length - 1, start_minute: newStartMin, start_overridden: true,
+      })
+      if (err) { loadWeek(weekStart); return }
+      if (fromJobs.length) {
+        const { jobs: fr } = recomputeDayJobs(fromJobs, plannerSettings, dayTravelMaps[fromDate] || {}, homeLat, homeLng)
+        await dbBatchUpdateSchedule(fr.map((j) => ({ id: j.id, sequence_index: j.sequence_index, start_minute: j.start_minute })))
+      }
+      const { jobs: toRecomputed } = recomputeDayJobs(toJobs, plannerSettings, dayTravelMaps[toDate] || {}, homeLat, homeLng)
+      const toOthers = toRecomputed.filter((j) => j.id !== job.id).map((j) => ({ id: j.id, sequence_index: j.sequence_index, start_minute: j.start_minute }))
+      if (toOthers.length) await dbBatchUpdateSchedule(toOthers)
+    }
+  }
+
+  // ── View toggle ────────────────────────────────────────────────────────────
+
+  function switchView(newView) {
+    if (newView === 'week' && view === 'day') setWeekStart(getMonday(weekStart))
+    setView(newView)
+  }
+
+  // ── Navigation ─────────────────────────────────────────────────────────────
+
+  function navPrev() {
+    setWeekStart((w) => addDays(w, view === 'day' ? -1 : -7))
+  }
+  function navNext() {
+    setWeekStart((w) => addDays(w, view === 'day' ? 1 : 7))
+  }
+  function navToday() {
+    setWeekStart(view === 'day' ? new Date() : getMonday(new Date()))
   }
 
   // ── Screen gate ────────────────────────────────────────────────────────────
 
   if (windowWidth !== null && windowWidth < 1024) {
     return (
-      <div className="min-h-dvh bg-[#F6F8F7] flex items-center justify-center px-6">
-        <p className="text-[16px] text-[#4A5B68] text-center">
+      <div style={{ minHeight: '100dvh', background: '#F6F8F7', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <p style={{ fontSize: 16, color: '#4A5B68', textAlign: 'center' }}>
           Open the planner on a computer to plan your week.
         </p>
       </div>
     )
   }
-
-  if (windowWidth === null) {
-    // Avoid flash before window width is known
-    return <div className="min-h-dvh bg-[#F6F8F7]" />
-  }
+  if (windowWidth === null) return <div style={{ minHeight: '100dvh', background: '#F6F8F7' }} />
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
+  const navLabel = view === 'day' ? formatDayFull(weekStart) : formatWeekRange(weekStart)
+
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-      <div className="flex flex-col h-screen bg-[#F6F8F7] overflow-hidden">
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#F6F8F7', overflow: 'hidden' }}>
 
-        {/* Top bar */}
-        <div className="flex items-center gap-4 px-5 py-3 bg-white border-b border-[#E4EAE8] shrink-0">
-          <h1 className="text-[16px] font-medium text-[#1F2D37]">Week planner</h1>
-          <div className="flex items-center gap-2 ml-2">
-            <button
-              type="button"
-              onClick={() => setWeekStart((w) => addDays(w, -7))}
-              className="min-h-[36px] px-3 text-[13px] font-medium text-[#4A5B68] border border-[#E4EAE8] rounded-lg bg-white hover:bg-[#F6F8F7] transition-colors"
-            >
-              Prev
-            </button>
-            <span className="text-[13px] text-[#4A5B68] min-w-[180px] text-center">
-              {formatWeekRange(weekStart)}
-            </span>
-            <button
-              type="button"
-              onClick={() => setWeekStart((w) => addDays(w, 7))}
-              className="min-h-[36px] px-3 text-[13px] font-medium text-[#4A5B68] border border-[#E4EAE8] rounded-lg bg-white hover:bg-[#F6F8F7] transition-colors"
-            >
-              Next
-            </button>
+        {/* ── Header bar ── */}
+        <div style={{
+          display: 'flex', alignItems: 'center',
+          backgroundColor: '#FFF', borderBottom: '1px solid #E4EAE8', flexShrink: 0,
+        }}>
+          {/* Brand — sits above the backlog column */}
+          <div style={{ width: 257, flexShrink: 0, padding: '10px 16px 10px 20px', display: 'flex', alignItems: 'center' }}>
+            <h1 style={{ margin: 0, display: 'flex', alignItems: 'baseline', gap: 5 }}>
+              <span style={{ fontSize: 18, fontWeight: 500, color: '#22A67A', letterSpacing: '-0.3px' }}>Jotey</span>
+              <span style={{ fontSize: 15, fontWeight: 400, color: '#4A5B68' }}>Planner</span>
+            </h1>
           </div>
-          <button
-            type="button"
-            onClick={() => setWeekStart(getMonday(new Date()))}
-            className="min-h-[36px] px-3 text-[13px] text-[#22A67A] font-medium hover:underline"
-          >
-            Today
-          </button>
-          <div className="ml-auto flex rounded-lg border border-[#E4EAE8] overflow-hidden">
-            {['week', 'month'].map((v) => (
-              <button
-                key={v}
-                type="button"
-                onClick={() => setView(v)}
-                className={`px-4 py-1.5 text-[13px] font-medium transition-colors duration-150 ${
-                  view === v
-                    ? 'bg-[#22A67A] text-white'
-                    : 'bg-white text-[#4A5B68] hover:bg-[#F6F8F7]'
-                }`}
-              >
-                {v === 'week' ? 'Week' : 'Month'}
+
+          {/* Nav controls — sits above the calendar grid */}
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 16, padding: '10px 20px 10px 16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button type="button" onClick={navPrev} style={{
+                minHeight: 34, padding: '0 12px', fontSize: 13, fontWeight: 500,
+                color: '#1F2D37', border: '1px solid #E4EAE8', borderRadius: 8,
+                background: '#FFF', cursor: 'pointer',
+              }}>
+                Prev
               </button>
-            ))}
+              <span style={{ fontSize: 13, color: '#4A5B68', minWidth: 200, textAlign: 'center' }}>
+                {navLabel}
+              </span>
+              <button type="button" onClick={navNext} style={{
+                minHeight: 34, padding: '0 12px', fontSize: 13, fontWeight: 500,
+                color: '#1F2D37', border: '1px solid #E4EAE8', borderRadius: 8,
+                background: '#FFF', cursor: 'pointer',
+              }}>
+                Next
+              </button>
+            </div>
+
+            <button type="button" onClick={navToday} style={{
+              minHeight: 34, padding: '0 10px', fontSize: 13, fontWeight: 500,
+              color: '#22A67A', background: 'none', border: 'none', cursor: 'pointer',
+            }}>
+              Today
+            </button>
+
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+              {(['day', 'week', 'month']).map((v) => (
+                <PillBtn key={v} active={view === v} onClick={() => switchView(v)}>
+                  {v === 'day' ? 'Day' : v === 'week' ? 'Week' : 'Month'}
+                </PillBtn>
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* Main pane */}
-        <div className="flex flex-1 overflow-hidden">
+        {/* ── Main pane ── */}
+        <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
           {/* Backlog column */}
-          <DroppableColumn
-            id="backlog"
-            className="w-[240px] shrink-0 flex flex-col border-r border-[#E4EAE8] bg-white"
-          >
-            <div className="px-3 py-2.5 border-b border-[#E4EAE8]">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[13px] font-medium text-[#1F2D37]">
-                  Backlog{backlog.length > 0 ? ` (${backlog.length})` : ''}
-                </p>
-              </div>
-              <div className="flex gap-1">
-                {[
-                  { value: 'oldest', label: 'Oldest first' },
-                  { value: 'area', label: 'By area' },
-                ].map((s) => (
-                  <button
-                    key={s.value}
-                    type="button"
-                    onClick={() => setBacklogSort(s.value)}
-                    className={`flex-1 text-[11px] font-medium py-1 px-1 rounded border transition-colors duration-150 ${
-                      backlogSort === s.value
-                        ? 'border-[#22A67A] bg-[#E6F7F0] text-[#22A67A]'
-                        : 'border-[#E4EAE8] text-[#4A5B68] bg-white hover:bg-[#F6F8F7]'
-                    }`}
-                  >
-                    {s.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-2">
-              {loading ? (
-                <p className="text-[12px] text-[#8CA3A0] text-center py-4">Loading...</p>
-              ) : sortedBacklog.length === 0 ? (
-                <p className="text-[12px] text-[#8CA3A0] text-center py-4">No jobs to schedule.</p>
-              ) : (
-                backlogDisplay.map((item, i) =>
-                  item.type === 'notice' ? (
-                    <p key="notice" className="text-[10px] text-[#8CA3A0] italic px-1 pb-1 leading-snug">
-                      {item.text}
-                    </p>
-                  ) : item.type === 'heading' ? (
-                    <p
-                      key={`h:${item.area}`}
-                      className="text-[10px] font-semibold text-[#8CA3A0] tracking-widest px-1 pt-2 pb-0.5"
-                      style={{ marginTop: i === 0 ? 0 : undefined }}
-                    >
-                      {item.area}
-                    </p>
-                  ) : (
-                    <BacklogCard key={item.job.id} job={item.job} />
-                  )
-                )
-              )}
-            </div>
-          </DroppableColumn>
+          <BacklogPanel
+            backlog={backlog}
+            backlogDisplay={backlogDisplay}
+            backlogSort={backlogSort}
+            setBacklogSort={setBacklogSort}
+            loading={loading}
+          />
 
           {/* Grid pane */}
-          <div className="flex-1 overflow-hidden flex flex-col">
+          <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', paddingLeft: 16 }}>
             {view === 'month' ? (
-              <div className="flex-1 overflow-y-auto">
+              <div style={{ flex: 1, overflowY: 'auto' }}>
                 <MonthHeatmap
                   year={weekStart.getFullYear()}
                   month={weekStart.getMonth()}
                   counts={monthCounts}
+                  weather={weather}
                 />
               </div>
+            ) : view === 'day' ? (
+              <DayViewPane
+                col={weekColumns[0]}
+                gridStartMin={gridStartMin}
+                gridEndMin={gridEndMin}
+                weather={weather}
+                onJobClick={(job, pos) => { setSelectedJob(job); setPanelPos(pos) }}
+              />
             ) : (
-              // Week grid
-              <div className="flex flex-1 overflow-hidden">
-                {weekColumns.map(({ date, dateStr, jobs, longDay, finish }) => (
-                  <DroppableColumn
-                    key={dateStr}
-                    id={`day::${dateStr}`}
-                    className="flex-1 flex flex-col border-r border-[#E4EAE8] last:border-r-0 min-w-0"
-                  >
-                    {/* Day header */}
-                    <div className="px-2 py-2 border-b border-[#E4EAE8] bg-white shrink-0">
-                      <p className="text-[12px] font-medium text-[#1F2D37] truncate">
-                        {formatDayHeader(date)}
-                      </p>
-                      {finish && (
-                        <p className={`text-[11px] ${longDay ? 'text-amber-500' : 'text-[#8CA3A0]'}`}>
-                          Finish {finish}
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Job cards */}
-                    <div className="flex-1 overflow-y-auto p-1.5 flex flex-col gap-1.5">
-                      {jobs.length === 0 ? (
-                        <div className="flex-1 flex items-center justify-center">
-                          <p className="text-[11px] text-[#8CA3A0] text-center px-2">
-                            Drop a job here
-                          </p>
-                        </div>
-                      ) : (
-                        jobs.map((job) => (
-                          <DayJobCard key={job.id} job={job} date={dateStr} />
-                        ))
-                      )}
-                    </div>
-                  </DroppableColumn>
-                ))}
-              </div>
+              <WeekViewPane
+                weekColumns={weekColumns}
+                gridStartMin={gridStartMin}
+                gridEndMin={gridEndMin}
+                weather={weather}
+                onJobClick={(job, pos) => { setSelectedJob(job); setPanelPos(pos) }}
+              />
             )}
           </div>
         </div>
@@ -897,16 +1475,34 @@ export default function PlannerPage() {
       {/* Drag overlay */}
       <DragOverlay dropAnimation={null}>
         {activeItem?.source === 'backlog' && (
-          <div className="w-[220px]">
-            <BacklogCard job={activeItem.job} ghost />
+          <div style={{ width: 220 }}>
+            <BacklogCardContent job={activeItem.job} ghost />
           </div>
         )}
-        {activeItem?.source === 'day' && (
-          <div className="w-[160px]">
-            <DayJobCard job={activeItem.job} date={activeItem.date} ghost />
-          </div>
-        )}
+        {activeItem?.source === 'time-block' && (() => {
+          const job = activeItem.job
+          const startMin = activeItem.originalStartMin ?? plannerSettings.day_start_minute
+          const dl = durLabel(job.estimated_duration || 1)
+          return (
+            <div style={{
+              width: 160, backgroundColor: '#FFF', border: '0.5px solid #22A67A',
+              borderRadius: 10, padding: '5px 8px', boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+            }}>
+              <p style={{ fontSize: 13, fontWeight: 500, color: '#22A67A', margin: 0 }}>{fmt(startMin)} · {dl}</p>
+              <p style={{ fontSize: 13, fontWeight: 500, color: '#1F2D37', margin: 0 }}>{job.customer_name}</p>
+            </div>
+          )
+        })()}
       </DragOverlay>
+
+      {/* Job detail panel */}
+      {selectedJob && panelPos && (
+        <JobDetailPanel
+          job={selectedJob}
+          pos={panelPos}
+          onClose={() => { setSelectedJob(null); setPanelPos(null) }}
+        />
+      )}
 
       {/* Drop modal */}
       {dropModalOpen && pendingDrop && (
@@ -915,17 +1511,196 @@ export default function PlannerPage() {
           date={pendingDrop.date}
           dayJobs={weekDays[pendingDrop.date] || []}
           plannerSettings={plannerSettings}
-          onConfirm={({ duration, slot }) => {
-            commitAssign(pendingDrop.job, pendingDrop.date, { duration, slot })
+          dayWeather={weather[pendingDrop.date] || null}
+          initialStartMin={pendingDrop.dropMin ?? null}
+          onConfirm={({ duration, slot, overrideMin }) => {
+            commitAssign(pendingDrop.job, pendingDrop.date, { duration, slot, overrideMin })
             setDropModalOpen(false)
             setPendingDrop(null)
           }}
-          onCancel={() => {
-            setDropModalOpen(false)
-            setPendingDrop(null)
-          }}
+          onCancel={() => { setDropModalOpen(false); setPendingDrop(null) }}
         />
       )}
     </DndContext>
+  )
+}
+
+// ─── BacklogPanel ──────────────────────────────────────────────────────────────
+
+function BacklogPanel({ backlog, backlogDisplay, backlogSort, setBacklogSort, loading }) {
+  const { setNodeRef, isOver } = useDroppable({ id: 'backlog' })
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        width: 256,
+        flexShrink: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        borderRight: '1px solid #E4EAE8',
+        backgroundColor: isOver ? '#FEF7E6' : '#FFF',
+        transition: 'background 0.1s',
+      }}
+    >
+      {/* Heading */}
+      <div style={{ padding: '12px 16px 10px', borderBottom: '1px solid #E4EAE8' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 10 }}>
+          <p style={{ fontSize: 15, fontWeight: 500, color: '#1F2D37', margin: 0 }}>To schedule</p>
+          {backlog.length > 0 && (
+            <span style={{ fontSize: 12, color: '#8CA3A0' }}>{backlog.length}</span>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <PillBtn active={backlogSort === 'oldest'} onClick={() => setBacklogSort('oldest')} small>
+            Oldest first
+          </PillBtn>
+          <PillBtn active={backlogSort === 'area'} onClick={() => setBacklogSort('area')} small>
+            By area
+          </PillBtn>
+        </div>
+      </div>
+
+      {/* Cards */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '8px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {loading ? (
+          <p style={{ fontSize: 12, color: '#8CA3A0', textAlign: 'center', paddingTop: 16 }}>Loading...</p>
+        ) : backlog.length === 0 ? (
+          <p style={{ fontSize: 12, color: '#8CA3A0', textAlign: 'center', paddingTop: 16 }}>No jobs to schedule.</p>
+        ) : (
+          backlogDisplay.map((item, i) =>
+            item.type === 'notice' ? (
+              <p key="notice" style={{ fontSize: 10, color: '#8CA3A0', fontStyle: 'italic', margin: '0 4px', lineHeight: 1.4 }}>
+                {item.text}
+              </p>
+            ) : item.type === 'heading' ? (
+              <div
+                key={`h:${item.area}`}
+                style={{
+                  fontSize: 15, fontWeight: 600, color: '#FFFFFF',
+                  backgroundColor: '#4A5B68',
+                  borderRadius: 6,
+                  padding: '10px 14px',
+                  borderLeft: '4px solid #22A67A',
+                  marginTop: i === 0 ? 0 : 18,
+                  marginBottom: 10,
+                  flexShrink: 0,
+                }}
+              >
+                {item.area}
+              </div>
+            ) : (
+              <BacklogCard key={item.job.id} job={item.job} />
+            )
+          )
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── DayViewPane ──────────────────────────────────────────────────────────────
+
+function DayViewPane({ col, gridStartMin, gridEndMin, weather, onJobClick }) {
+  if (!col) return null
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', paddingRight: 16, paddingTop: 12, paddingBottom: 12 }}>
+      {/* Dark header bar */}
+      <div style={{ flexShrink: 0, borderRadius: '8px 8px 0 0', overflow: 'hidden' }}>
+        <DayHeader date={col.date} dateStr={col.dateStr} weather={weather} />
+      </div>
+
+      {/* Scrollable body */}
+      <div style={{ flex: 1, overflowY: 'auto', backgroundColor: '#FFF', border: '0.5px solid #E4EAE8', borderTop: 'none', borderRadius: '0 0 12px 12px', padding: '8px 8px 16px' }}>
+        <TimeGridColumnBody
+          dateStr={col.dateStr}
+          jobs={col.jobs}
+          legs={col.legs}
+          leaveHome={col.leaveHome}
+          leaveHomeMin={col.leaveHomeMin}
+          finishMin={col.finishMin}
+          finish={col.finish}
+          longDay={col.longDay}
+          totalDriveMin={col.totalDriveMin}
+          gridStartMin={gridStartMin}
+          gridEndMin={gridEndMin}
+          showHourLabels={true}
+          onJobClick={onJobClick}
+        />
+      </div>
+    </div>
+  )
+}
+
+// ─── WeekViewPane ─────────────────────────────────────────────────────────────
+
+function WeekViewPane({ weekColumns, gridStartMin, gridEndMin, weather, onJobClick }) {
+  const todayStr = toDateStr(new Date())
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', paddingRight: 12, paddingTop: 12, paddingBottom: 12 }}>
+      {/* Connected dark header bar */}
+      <div style={{ marginLeft: HOUR_LBL_W + 8, flexShrink: 0, display: 'flex', borderRadius: '10px 10px 0 0', overflow: 'hidden' }}>
+        {weekColumns.map((col, idx) => {
+          const isToday = col.dateStr === todayStr
+          const w = weather?.[col.dateStr]
+          return (
+            <div
+              key={col.dateStr}
+              style={{
+                flex: 1,
+                backgroundColor: isToday ? '#22A67A' : '#1F2D37',
+                borderRight: idx < weekColumns.length - 1 ? '1px solid #2A3A45' : 'none',
+                padding: '8px 6px',
+                textAlign: 'center',
+              }}
+            >
+              <p style={{ fontSize: 11, fontWeight: 500, color: isToday ? 'rgba(255,255,255,0.75)' : '#7A9490', margin: 0, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                {col.date.toLocaleDateString('en-NZ', { weekday: 'short' })}
+              </p>
+              <p style={{ fontSize: 18, fontWeight: 600, color: '#FFFFFF', margin: '2px 0 0', lineHeight: 1 }}>
+                {col.date.getDate()}
+              </p>
+              {w && WEATHER_CHIP[w.condition] && (() => {
+                const wc = WEATHER_CHIP[w.condition]
+                return (
+                  <p style={{ margin: '4px 0 0' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 500, padding: '2px 6px', borderRadius: 4, backgroundColor: wc.bg, color: wc.text, whiteSpace: 'nowrap' }}>
+                      <wc.Icon size={14} color={wc.iconColor} stroke={1.5} />
+                      {w.temp_c} {wc.label}
+                    </span>
+                  </p>
+                )
+              })()}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Scrollable body */}
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <HourAxis gridStartMin={gridStartMin} gridEndMin={gridEndMin} />
+          {weekColumns.map((col) => (
+            <TimeGridColumnBody
+              key={col.dateStr}
+              dateStr={col.dateStr}
+              jobs={col.jobs}
+              legs={col.legs}
+              leaveHome={col.leaveHome}
+              leaveHomeMin={col.leaveHomeMin}
+              finishMin={col.finishMin}
+              finish={col.finish}
+              longDay={col.longDay}
+              totalDriveMin={col.totalDriveMin}
+              gridStartMin={gridStartMin}
+              gridEndMin={gridEndMin}
+              showHourLabels={false}
+              topFlat={true}
+              onJobClick={onJobClick}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }
