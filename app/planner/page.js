@@ -348,24 +348,26 @@ function TimeBlock({ job, dateStr, gridStartMin, leftPad, onJobClick, isDay }) {
       }}
     >
       {isDay ? (
-        <>
-          <span style={{ fontSize: 14, fontWeight: 500, color: '#22A67A', lineHeight: 1 }}>
-            {fmt(startMin)}
-          </span>
-          {' '}
-          <span style={{ fontSize: 12, color: '#8CA3A0', lineHeight: 1 }}>{dl}</span>
-          <p style={{ fontSize: 15, fontWeight: 600, color: '#1F2D37', margin: '4px 0 0', lineHeight: 1.3 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+          <div style={{ flexShrink: 0 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#22A67A', lineHeight: 1 }}>
+              {fmt(startMin)}
+            </span>
+            {' '}
+            <span style={{ fontSize: 13, color: '#8CA3A0', lineHeight: 1 }}>{dl}</span>
+          </div>
+          <p style={{ fontSize: 15, fontWeight: 600, color: '#1F2D37', margin: '4px 0 0', lineHeight: 1.3, flexShrink: 0 }}>
             {job.customer_name}
           </p>
           {(summary || suburb) && (
-            <p style={{ fontSize: 13, color: '#4A5B68', margin: '4px 0 0', lineHeight: 1.3 }}>
+            <p style={{ fontSize: 13, color: '#4A5B68', margin: '4px 0 0', lineHeight: 1.3, flex: 1, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
               {[summary, suburb].filter(Boolean).join(' · ')}
             </p>
           )}
-          <span style={{ position: 'absolute', bottom: 6, left: 16, fontSize: 10, fontWeight: 600, color: '#8CA3A0', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          <span style={{ display: 'block', marginTop: 4, flexShrink: 0, fontSize: 10, fontWeight: 600, color: isRebook ? '#E8940D' : '#8CA3A0', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             {isRebook ? 'REBOOK' : 'CONFIRMED'}
           </span>
-        </>
+        </div>
       ) : (
         <>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4, marginBottom: 2 }}>
@@ -382,7 +384,7 @@ function TimeBlock({ job, dateStr, gridStartMin, leftPad, onJobClick, isDay }) {
               {summary}
             </p>
           )}
-          <span style={{ position: 'absolute', bottom: 5, left: 8, fontSize: 9, fontWeight: 600, color: '#8CA3A0', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          <span style={{ display: 'block', marginTop: 3, fontSize: 9, fontWeight: 600, color: isRebook ? '#E8940D' : '#8CA3A0', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             {isRebook ? 'REBOOK' : 'CONFIRMED'}
           </span>
         </>
@@ -482,7 +484,7 @@ function TimeGridColumnBody({ dateStr, jobs, legs, leaveHome, leaveHomeMin, fini
               pointerEvents: 'none',
             }}
           >
-            <span style={{ fontSize: showHourLabels ? 13 : 11, fontWeight: 500, color: '#22A67A', whiteSpace: 'nowrap' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', fontSize: showHourLabels ? 12 : 10, fontWeight: 500, color: '#22A67A', backgroundColor: '#F6F8F7', border: '1px solid #E4EAE8', borderRadius: 6, padding: '3px 8px', whiteSpace: 'nowrap' }}>
               Leave home {leaveHome}{showHourLabels && (legs?.[0]?.travelMin ?? 0) > 0 ? ` · ${legs[0].travelMin} min to first job` : ''}
             </span>
           </div>

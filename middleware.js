@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server'
 
 const PUBLIC_PATHS = [
   '/login',
+  '/signup',
+  '/done',
   '/forgot-password',
   '/reset-password',
   '/accept',
