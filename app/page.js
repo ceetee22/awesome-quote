@@ -4,27 +4,9 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useJob } from '@/lib/job-context'
 import { useSettings } from '@/lib/settings-context'
-import { formatCurrency, jobTotalIncGst } from '@/lib/pricing'
 import StatusBadge from '@/components/StatusBadge'
 
-function JoteyMonogram() {
-  return (
-    <svg width="48" height="48" viewBox="0 0 48 48" fill="none" aria-label="Jotey">
-      <rect width="48" height="48" rx="10" fill="#22A67A" />
-      <text
-        x="24"
-        y="33"
-        fontFamily="Inter, system-ui, -apple-system, sans-serif"
-        fontWeight="500"
-        fontSize="26"
-        fill="#FFFFFF"
-        textAnchor="middle"
-      >
-        J
-      </text>
-    </svg>
-  )
-}
+// ─── Helpers ───────────────────────────────────────────────────────────────────
 
 function getGreeting() {
   const h = new Date().getHours()
@@ -33,195 +15,364 @@ function getGreeting() {
   return 'Good evening'
 }
 
-function ActionButton({ href, icon, label }) {
+function timeAgo(dateStr) {
+  if (!dateStr) return ''
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const min = Math.floor(diff / 60000)
+  const hr = Math.floor(min / 60)
+  const day = Math.floor(hr / 24)
+  if (day > 0) return `${day}d ago`
+  if (hr > 0) return `${hr}h ago`
+  if (min > 0) return `${min}m ago`
+  return 'Just now'
+}
+
+function activityLabel(status) {
+  const labels = {
+    draft:     'Quote started',
+    quoted:    'Quote sent',
+    accepted:  'Quote accepted',
+    ordered:   'Parts ordered',
+    scheduled: 'Job scheduled',
+    completed: 'Job completed',
+    invoiced:  'Invoice sent',
+    declined:  'Quote declined',
+  }
+  return labels[status] || 'Updated'
+}
+
+function jobSummary(job) {
+  const items = job.items || []
+  if (!items.length) return ''
+  const labels = items.map((it) =>
+    it.type === 'diagnosed'
+      ? (it.joinery_type_label || it.fault_label || 'Diagnosed item')
+      : (it.description || 'Custom item')
+  )
+  if (labels.length <= 2) return labels.join(', ')
+  return `${labels[0]}, ${labels[1]} +${labels.length - 2} more`
+}
+
+// ─── Smart prompt logic ────────────────────────────────────────────────────────
+
+function resolvePrompt(jobs) {
+  const today = new Date().toISOString().split('T')[0]
+  const now = new Date()
+  const nowMin = now.getHours() * 60 + now.getMinutes()
+  const hour = now.getHours()
+
+  // Priority 1: job starting within next hour (or started ≤15 min ago)
+  const upcomingJob = jobs.find((j) => {
+    if (j.scheduled_date !== today) return false
+    if (j.status !== 'accepted' && j.status !== 'scheduled') return false
+    if (j.start_minute == null) return false
+    return j.start_minute >= nowMin - 15 && j.start_minute <= nowMin + 60
+  })
+  if (upcomingJob) return { type: 'upcoming', job: upcomingJob }
+
+  // Priority 2: quote just accepted (unscheduled, within last 24 h)
+  const recentlyAccepted = [...jobs]
+    .filter((j) => {
+      if (j.status !== 'accepted') return false
+      if (j.schedule_state !== 'unassigned') return false
+      const ref = j.accepted_at || j.updated_at
+      if (!ref) return false
+      return Date.now() - new Date(ref).getTime() < 86400000
+    })
+    .sort((a, b) =>
+      new Date(b.accepted_at || b.updated_at) - new Date(a.accepted_at || a.updated_at)
+    )[0]
+  if (recentlyAccepted) return { type: 'accepted', job: recentlyAccepted }
+
+  // Priority 3: uninvoiced completed jobs — only in evening or no active jobs today
+  const completedJobs = jobs.filter((j) => j.status === 'completed')
+  if (completedJobs.length > 0) {
+    const activeToday = jobs.some(
+      (j) =>
+        j.scheduled_date === today &&
+        (j.status === 'accepted' || j.status === 'scheduled')
+    )
+    if (hour >= 17 || !activeToday) {
+      return { type: 'uninvoiced', count: completedJobs.length }
+    }
+  }
+
+  return null
+}
+
+// ─── Smart prompt card ─────────────────────────────────────────────────────────
+
+function SmartPromptCard({ prompt }) {
+  if (!prompt) return null
+
+  // Upcoming job
+  if (prompt.type === 'upcoming') {
+    const { job } = prompt
+    const summary = jobSummary(job)
+    const mapsUrl = job.customer_address
+      ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(job.customer_address)}`
+      : null
+
+    return (
+      <div style={{ backgroundColor: '#1F2D37', borderRadius: 12, padding: '16px 16px 20px', marginBottom: 16 }}>
+        <p style={{ fontSize: 11, fontWeight: 500, color: '#8CA3A0', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          Next job
+        </p>
+        <p style={{ fontSize: 18, fontWeight: 600, color: '#FFFFFF', margin: '0 0 2px', lineHeight: 1.3 }}>
+          {job.customer_name}
+        </p>
+        {summary && (
+          <p style={{ fontSize: 14, color: '#8CA3A0', margin: '0 0 4px', lineHeight: 1.4 }}>
+            {summary}
+          </p>
+        )}
+        {job.customer_address && (
+          <p style={{ fontSize: 14, color: '#8CA3A0', margin: '0 0 16px', lineHeight: 1.4 }}>
+            {job.customer_address}
+          </p>
+        )}
+        {mapsUrl ? (
+          <a
+            href={mapsUrl}
+            target="_blank"
+            rel="noreferrer"
+            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: 48, paddingLeft: 24, paddingRight: 24, borderRadius: 10, backgroundColor: '#22A67A', color: '#FFFFFF', fontSize: 15, fontWeight: 500, textDecoration: 'none' }}
+          >
+            Navigate
+          </a>
+        ) : (
+          <Link
+            href={`/jobs/${job.id}`}
+            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: 48, paddingLeft: 24, paddingRight: 24, borderRadius: 10, backgroundColor: '#22A67A', color: '#FFFFFF', fontSize: 15, fontWeight: 500, textDecoration: 'none' }}
+          >
+            View job
+          </Link>
+        )}
+      </div>
+    )
+  }
+
+  // Quote just accepted
+  if (prompt.type === 'accepted') {
+    const { job } = prompt
+    return (
+      <div style={{ backgroundColor: '#E6F7F0', border: '1px solid #C5E8D5', borderRadius: 12, padding: '16px 16px 20px', marginBottom: 16 }}>
+        <p style={{ fontSize: 11, fontWeight: 500, color: '#22A67A', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          Quote accepted
+        </p>
+        <p style={{ fontSize: 18, fontWeight: 600, color: '#1F2D37', margin: '0 0 16px', lineHeight: 1.3 }}>
+          {job.customer_name}
+        </p>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <Link
+            href={`/jobs/${job.id}`}
+            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 48, borderRadius: 10, border: '1px solid #C5E8D5', backgroundColor: '#FFFFFF', color: '#1F2D37', fontSize: 15, fontWeight: 500, textDecoration: 'none' }}
+          >
+            View
+          </Link>
+          <Link
+            href="/planner"
+            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 48, borderRadius: 10, backgroundColor: '#22A67A', color: '#FFFFFF', fontSize: 15, fontWeight: 500, textDecoration: 'none' }}
+          >
+            Schedule
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  // Uninvoiced completed jobs
+  if (prompt.type === 'uninvoiced') {
+    return (
+      <div style={{ backgroundColor: '#FEF7E6', border: '1px solid #F5E2B0', borderRadius: 12, padding: '16px 16px 20px', marginBottom: 16 }}>
+        <p style={{ fontSize: 11, fontWeight: 500, color: '#854F0B', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          Ready to invoice
+        </p>
+        <p style={{ fontSize: 18, fontWeight: 600, color: '#1F2D37', margin: '0 0 16px', lineHeight: 1.3 }}>
+          {prompt.count} {prompt.count === 1 ? 'job' : 'jobs'} ready to invoice
+        </p>
+        <Link
+          href="/quotes"
+          style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: 48, paddingLeft: 24, paddingRight: 24, borderRadius: 10, backgroundColor: '#E8940D', color: '#FFFFFF', fontSize: 15, fontWeight: 500, textDecoration: 'none' }}
+        >
+          Invoice now
+        </Link>
+      </div>
+    )
+  }
+
+  return null
+}
+
+// ─── Day progress bar ──────────────────────────────────────────────────────────
+
+function DayProgressBar({ jobs }) {
+  const today = new Date().toISOString().split('T')[0]
+  const todaysJobs = jobs.filter((j) => j.scheduled_date === today)
+  const done = todaysJobs.filter((j) => j.status === 'completed').length
+  const total = todaysJobs.length
+  if (total === 0) return null
+  const pct = Math.round((done / total) * 100)
+
   return (
-    <Link
-      href={href}
-      className="flex items-center gap-aq-lg bg-white border border-aq-border rounded-aq-xl p-aq-lg min-h-[64px] text-body font-medium text-aq-ink hover:bg-aq-surface active:bg-aq-border transition-colors duration-150"
-    >
-      <span className="text-aq-green text-[24px] w-8 flex items-center justify-center shrink-0" aria-hidden="true">
-        {icon}
-      </span>
-      {label}
+    <Link href="/today" style={{ display: 'block', textDecoration: 'none', marginBottom: 16 }}>
+      <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E4EAE8', borderRadius: 12, padding: '12px 16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <span style={{ fontSize: 16, fontWeight: 500, color: '#1F2D37' }}>
+            {done} of {total} done today
+          </span>
+          <span style={{ fontSize: 14, color: '#8CA3A0' }}>{pct}%</span>
+        </div>
+        <div style={{ height: 6, backgroundColor: '#E4EAE8', borderRadius: 3, overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${pct}%`, backgroundColor: '#22A67A', borderRadius: 3 }} />
+        </div>
+      </div>
     </Link>
   )
 }
 
+// ─── Stat card ─────────────────────────────────────────────────────────────────
 
-function JobRow({ job, hourlyRate, gstRate, getDisplayStatus }) {
-  const total = jobTotalIncGst(job, hourlyRate, gstRate)
-  const itemCount = (job.items || []).length
+function StatCard({ label, count, sub, href, countColor }) {
+  return (
+    <Link href={href} style={{ flex: 1, textDecoration: 'none' }}>
+      <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E4EAE8', borderRadius: 12, padding: '14px 16px', minHeight: 96, display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <p style={{ fontSize: 14, color: '#4A5B68', margin: 0, lineHeight: 1.3 }}>{label}</p>
+        <p style={{ fontSize: 34, fontWeight: 500, color: countColor, margin: 0, lineHeight: 1 }}>{count}</p>
+        <p style={{ fontSize: 13, color: '#8CA3A0', margin: 0 }}>{sub}</p>
+      </div>
+    </Link>
+  )
+}
 
+// ─── Activity row ──────────────────────────────────────────────────────────────
+
+function ActivityRow({ job }) {
   return (
     <Link
       href={`/jobs/${job.id}`}
-      className="block bg-white border border-aq-border rounded-aq-xl p-aq-lg hover:bg-aq-surface active:bg-aq-border transition-colors duration-150"
+      style={{ display: 'flex', alignItems: 'center', gap: 12, backgroundColor: '#FFFFFF', border: '1px solid #E4EAE8', borderRadius: 12, padding: '12px 16px', minHeight: 64, textDecoration: 'none' }}
     >
-      <div className="flex items-start justify-between gap-aq-sm mb-1">
-        <span className="text-body font-medium text-aq-ink leading-snug">{job.customer_name}</span>
-        <StatusBadge status={getDisplayStatus(job)} />
-      </div>
-      {job.customer_address && (
-        <p className="text-secondary text-aq-muted mb-1">{job.customer_address}</p>
-      )}
-      <div className="flex items-center justify-between">
-        <p className="text-secondary text-aq-muted">
-          {itemCount} {itemCount === 1 ? 'item' : 'items'}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontSize: 16, fontWeight: 500, color: '#1F2D37', margin: '0 0 2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {job.customer_name}
         </p>
-        <p className="text-body font-medium text-aq-ink">{formatCurrency(total)}</p>
+        <p style={{ fontSize: 14, color: '#4A5B68', margin: 0 }}>
+          {activityLabel(job.status)}
+        </p>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
+        <StatusBadge status={job.status} />
+        <p style={{ fontSize: 13, color: '#8CA3A0', margin: 0 }}>
+          {timeAgo(job.updated_at || job.created_at)}
+        </p>
       </div>
     </Link>
   )
 }
 
+// ─── Page ──────────────────────────────────────────────────────────────────────
 
 export default function HomePage() {
   const { jobs } = useJob()
   const { settings } = useSettings()
-  const [bizBannerDismissed, setBizBannerDismissed] = useState(false)
   const [greeting, setGreeting] = useState('')
   useEffect(() => { setGreeting(getGreeting()) }, [])
 
-  const missingBizDetails =
-    !settings?.business_name?.trim() ||
-    !settings?.business_phone?.trim() ||
-    !settings?.business_email?.trim() ||
-    !settings?.bank_account_number?.trim()
+  const businessName = settings?.business_name || settings?.trading_name || ''
+  const prompt = resolvePrompt(jobs)
 
-  function getJobPriority(job) {
-    if (job.status === 'accepted' || job.status === 'scheduled') return 0
-    if (job.status === 'quoted' || job.status === 'awaiting') return 1
-    if (job.status === 'invoiced' && job.payment_status !== 'paid') return 2
-    if (job.status === 'draft') return 3
-    if (job.status === 'ordered') return 4
-    if (job.status === 'completed') return 5
-    if (job.status === 'invoiced') return 6
-    return 10
-  }
+  const quotedCount = jobs.filter((j) => j.status === 'quoted').length
+  const toScheduleCount = jobs.filter(
+    (j) => j.status === 'accepted' && j.schedule_state === 'unassigned'
+  ).length
 
-  function displayStatus(job) {
-    if (job.status === 'invoiced' && job.payment_status !== 'paid') return 'unpaid'
-    return job.status
-  }
-
-  const recentJobs = [...jobs]
+  const recentActivity = [...jobs]
     .filter((j) => j.status !== 'declined')
-    .sort((a, b) => {
-      const pa = getJobPriority(a)
-      const pb = getJobPriority(b)
-      if (pa !== pb) return pa - pb
-      return new Date(b.created_at) - new Date(a.created_at)
-    })
+    .sort((a, b) =>
+      new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at)
+    )
     .slice(0, 5)
 
   return (
-    <div className="min-h-dvh bg-aq-surface">
-        <div className="max-w-[480px] mx-auto px-aq-lg pb-[88px]">
+    <div style={{ minHeight: '100dvh', backgroundColor: '#F6F8F7' }}>
+      <div style={{ maxWidth: 480, margin: '0 auto', padding: '0 16px 88px' }}>
 
-          {/* Header */}
-          <header className="flex items-center gap-aq-md py-aq-xl">
-            <JoteyMonogram />
-            <div className="flex-1">
-              <h1 className="text-page-title font-medium text-aq-ink leading-tight">
-                Jotey
-              </h1>
-              {greeting && <p className="text-secondary text-aq-muted">{greeting}</p>}
-            </div>
-            <Link
-              href="/settings"
-              aria-label="Settings"
-              className="min-h-tap w-12 flex items-center justify-center text-aq-muted hover:text-aq-ink transition-colors duration-150 shrink-0"
-            >
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <circle cx="12" cy="12" r="3" />
-                <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
-              </svg>
-            </Link>
-          </header>
+        {/* Greeting */}
+        <header style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', paddingTop: 24, paddingBottom: 20 }}>
+          <div>
+            {greeting && (
+              <p style={{ fontSize: 16, color: '#4A5B68', margin: '0 0 2px' }}>{greeting}</p>
+            )}
+            <h1 style={{ fontSize: 22, fontWeight: 600, color: '#1F2D37', margin: 0, lineHeight: 1.2 }}>
+              {businessName || 'Jotey'}
+            </h1>
+          </div>
+          <Link
+            href="/settings"
+            aria-label="Settings"
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 48, minWidth: 48, color: '#8CA3A0', flexShrink: 0 }}
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
+            </svg>
+          </Link>
+        </header>
 
-          {/* Primary action buttons */}
-          <section aria-label="Main actions">
-            <div className="flex flex-col gap-[10px] mb-aq-2xl">
-              <ActionButton href="/jobs/new" icon="+" label="New job" />
-              <ActionButton
-                href="/quotes"
-                icon={
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                  </svg>
-                }
-                label="Open quotes"
-              />
-              <ActionButton
-                href="/today"
-                icon={
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                    <line x1="16" y1="2" x2="16" y2="6" />
-                    <line x1="8" y1="2" x2="8" y2="6" />
-                    <line x1="3" y1="10" x2="21" y2="10" />
-                  </svg>
-                }
-                label="Jobs today"
-              />
-              <ActionButton
-                href="/catalogue"
-                icon={
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-                  </svg>
-                }
-                label="Parts catalogue"
-              />
-            </div>
-          </section>
+        {/* Smart prompt — contextual, changes based on priority */}
+        <SmartPromptCard prompt={prompt} />
 
-          {/* Business details nudge */}
-          {missingBizDetails && !bizBannerDismissed && (
-            <div className="bg-aq-info-tint border border-aq-info-tint-border rounded-aq-xl px-aq-lg py-aq-sm flex items-center justify-between gap-aq-md mb-aq-lg">
-              <p className="text-secondary text-aq-info flex-1">
-                Finish your business details so they show on your quotes and invoices.{' '}
-                <Link href="/settings" className="font-medium underline min-h-tap inline-flex items-center">
-                  Go to settings
-                </Link>
+        {/* Day progress — taps to Today view */}
+        <DayProgressBar jobs={jobs} />
+
+        {/* New job — full width, always visible, never moves */}
+        <Link
+          href="/jobs/new"
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', minHeight: 56, backgroundColor: '#22A67A', color: '#FFFFFF', borderRadius: 10, fontSize: 16, fontWeight: 600, textDecoration: 'none', marginBottom: 16, boxSizing: 'border-box' }}
+        >
+          New job
+        </Link>
+
+        {/* Stat cards — live counts */}
+        <div style={{ display: 'flex', gap: 10, marginBottom: 24 }}>
+          <StatCard
+            label="Quotes out"
+            count={quotedCount}
+            sub="Waiting on customer"
+            href="/quotes"
+            countColor="#3B82D6"
+          />
+          <StatCard
+            label="To schedule"
+            count={toScheduleCount}
+            sub="Accepted, unplanned"
+            href="/planner"
+            countColor="#1F2D37"
+          />
+        </div>
+
+        {/* Recent activity — last 5 job status changes */}
+        <section aria-label="Recent activity">
+          <h2 style={{ fontSize: 18, fontWeight: 500, color: '#1F2D37', margin: '0 0 12px' }}>
+            Recent activity
+          </h2>
+          {recentActivity.length === 0 ? (
+            <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E4EAE8', borderRadius: 12, padding: 24, textAlign: 'center' }}>
+              <p style={{ fontSize: 16, color: '#8CA3A0', margin: 0 }}>
+                No jobs yet. Tap New job to get started.
               </p>
-              <button
-                type="button"
-                onClick={() => setBizBannerDismissed(true)}
-                aria-label="Dismiss"
-                className="min-h-tap min-w-[48px] flex items-center justify-center text-aq-info shrink-0 text-lg leading-none"
-              >
-                ×
-              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {recentActivity.map((job) => (
+                <ActivityRow key={job.id} job={job} />
+              ))}
             </div>
           )}
+        </section>
 
-          {/* Recent jobs */}
-          <section aria-label="Recent jobs">
-            <h2 className="text-section font-medium text-aq-ink mb-aq-md">Recent jobs</h2>
-
-            {recentJobs.length === 0 ? (
-              <div className="bg-white border border-aq-border rounded-aq-xl p-aq-xl text-center">
-                <p className="text-secondary text-aq-muted">
-                  No jobs yet. Tap New job to get started.
-                </p>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-[10px]">
-                {recentJobs.map((job) => (
-                  <JobRow
-                    key={job.id}
-                    job={job}
-                    hourlyRate={settings.hourly_labour_rate}
-                    gstRate={settings.gst_rate}
-                    getDisplayStatus={displayStatus}
-                  />
-                ))}
-              </div>
-            )}
-          </section>
-
-        </div>
+      </div>
     </div>
   )
 }
