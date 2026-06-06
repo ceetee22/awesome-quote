@@ -3,8 +3,8 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-// Auth/public pages
-const HIDDEN_STARTS = ['/login', '/forgot-password', '/reset-password', '/accept']
+// Auth/public pages and onboarding flows
+const HIDDEN_STARTS = ['/login', '/signup', '/forgot-password', '/reset-password', '/accept', '/setup', '/deactivated', '/auth']
 // Task-focused pages where the user should complete the flow, not navigate away
 const HIDDEN_INCLUDES = ['/items/add', '/items/custom', '/items/rubber', '/quote', '/order']
 

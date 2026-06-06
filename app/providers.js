@@ -8,6 +8,8 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useSettings } from '@/lib/settings-context'
 import { useEffect } from 'react'
 
+const AUTH_PATHS = ['/login', '/signup', '/forgot-password', '/reset-password', '/auth']
+
 function Guards() {
   const { settings, settingsLoaded } = useSettings()
   const pathname = usePathname()
@@ -15,6 +17,8 @@ function Guards() {
 
   useEffect(() => {
     if (!settingsLoaded) return
+    // Never redirect from auth pages — they handle their own flow
+    if (AUTH_PATHS.some((p) => pathname.startsWith(p))) return
 
     // Deactivated check has highest priority
     if (settings?.active === false && !pathname.startsWith('/deactivated')) {
@@ -22,7 +26,7 @@ function Guards() {
       return
     }
 
-    // Setup wizard redirect (skip if deactivated or already in setup/deactivated)
+    // Setup wizard redirect
     if (
       settings?.setup_complete === false &&
       !pathname.startsWith('/setup') &&
