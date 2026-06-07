@@ -185,7 +185,7 @@ export default function QuotePage() {
 
   const newVersion = (currentJob?.quote_version || 1) + 1
 
-  const acceptanceUrl = `https://awesome-quote.vercel.app/accept/${params.id}`
+  const acceptanceUrl = `https://www.jotey.co.nz/accept/${params.id}`
 
   function buildPdfArgs(extra = {}) {
     return {

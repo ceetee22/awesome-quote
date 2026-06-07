@@ -350,8 +350,8 @@ export default function JobDetailPage() {
         job: currentJob, settings,
         labourHours: lh, calloutFee: cf, hourlyRate: hr,
         subtotal: sub, gst: g, total: sub + g,
-        acceptanceUrl: `https://awesome-quote.vercel.app/accept/${currentJob.id}`,
-        photosUrl: hasBeforePhotos ? `https://awesome-quote.vercel.app/done/${currentJob.id}` : null,
+        acceptanceUrl: `https://www.jotey.co.nz/accept/${currentJob.id}`,
+        photosUrl: hasBeforePhotos ? `https://www.jotey.co.nz/done/${currentJob.id}` : null,
         logoUrl: settings.logo_url || null,
         parkingNoteShown: currentJob.parking_note_shown ?? true,
       })
