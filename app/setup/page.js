@@ -159,6 +159,15 @@ export default function SetupPage() {
         try {
           await updateBusiness({ supplier_name: selected.name, supplier_email: selectedSupplierEmail })
           updateSettings({ supplier_name: selected.name, supplier_email: selectedSupplierEmail })
+          // Also write the email back to the suppliers table record created by copy-from-master
+          const supabase = createSupabaseBrowserClient()
+          if (supabase) {
+            await supabase
+              .from('suppliers')
+              .update({ email: selectedSupplierEmail || '' })
+              .eq('name', selected.name)
+              .eq('active', true)
+          }
         } finally {
           setSaving(false)
         }

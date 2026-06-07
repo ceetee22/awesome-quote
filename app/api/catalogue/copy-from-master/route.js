@@ -125,5 +125,26 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Insert failed', detail: insertError.message }, { status: 500 })
   }
 
+  // Ensure a suppliers table record exists for this business so Settings → Suppliers shows it
+  const { data: existingSupplier } = await service
+    .from('suppliers')
+    .select('id')
+    .eq('business_id', biz.id)
+    .eq('name', masterSupplier.name)
+    .maybeSingle()
+
+  if (!existingSupplier) {
+    await service.from('suppliers').insert({
+      business_id: biz.id,
+      name: masterSupplier.name,
+      email: '',
+      phone: '',
+      contact_person: '',
+      notes: '',
+      is_default: true,
+      active: true,
+    })
+  }
+
   return NextResponse.json({ count: toInsert.length })
 }
