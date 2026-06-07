@@ -9,6 +9,22 @@ import BackButton from '@/components/BackButton'
 import StatusBadge from '@/components/StatusBadge'
 import ConfirmModal from '@/components/ConfirmModal'
 
+function RoomHeader({ room, itemCount, onAdd }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, marginTop: 4 }}>
+      <p style={{ fontSize: 15, fontWeight: 600, color: '#1F2D37', flex: 1 }}>{room.name}</p>
+      <span style={{ fontSize: 13, color: '#8CA3A0' }}>{itemCount} item{itemCount !== 1 ? 's' : ''}</span>
+      <button
+        type="button"
+        onClick={onAdd}
+        style={{ fontSize: 14, fontWeight: 500, color: '#22A67A', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', minHeight: 44 }}
+      >
+        + Add
+      </button>
+    </div>
+  )
+}
+
 function ItemCard({ item, onDelete }) {
   const partsTotal = (item.parts || []).reduce(
     (sum, p) => sum + p.sell_price * p.qty,
@@ -88,6 +104,28 @@ export default function JobItemsPage() {
   const [deleteTargetId, setDeleteTargetId] = useState(null)
 
   const items = currentJob?.items ?? []
+  const rooms = currentJob?.rooms ?? []
+
+  const hasRooms = items.some((item) => item.room_id)
+  const roomMap = Object.fromEntries(rooms.map((r) => [r.id, r]))
+
+  // Build ordered room groups (rooms with items, in creation order)
+  const noRoomItems = items.filter((i) => !i.room_id)
+  const roomGroups = []
+  const seenRoomIds = new Set()
+  rooms.forEach((room) => {
+    const roomItems = items.filter((i) => i.room_id === room.id)
+    if (roomItems.length > 0) {
+      roomGroups.push({ room, items: roomItems })
+      seenRoomIds.add(room.id)
+    }
+  })
+  // Handle orphaned room_ids (shouldn't happen but defensive)
+  items.filter((i) => i.room_id && !seenRoomIds.has(i.room_id)).forEach((i) => {
+    const fakeRoom = { id: i.room_id, name: i.room_name || 'Room' }
+    roomGroups.push({ room: fakeRoom, items: [i] })
+    seenRoomIds.add(i.room_id)
+  })
 
   // Running total: parts only (labour and callout set in quote builder)
   const partsTotal = items.reduce((sum, item) => {
@@ -144,16 +182,54 @@ export default function JobItemsPage() {
           </div>
         ) : (
           <>
-            {/* Items list */}
-            <div className="flex flex-col gap-[10px] mb-aq-lg">
-              {items.map((item) => (
-                <ItemCard
-                  key={item.id}
-                  item={item}
-                  onDelete={() => setDeleteTargetId(item.id)}
-                />
-              ))}
-            </div>
+            {hasRooms ? (
+              /* ── Grouped by room ── */
+              <div className="flex flex-col gap-aq-lg mb-aq-lg">
+                {/* Items without a room first */}
+                {noRoomItems.length > 0 && (
+                  <div>
+                    <p style={{ fontSize: 11, fontWeight: 600, color: '#8CA3A0', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Other items</p>
+                    <div className="flex flex-col gap-[10px]">
+                      {noRoomItems.map((item) => (
+                        <ItemCard key={item.id} item={item} onDelete={() => setDeleteTargetId(item.id)} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Room groups */}
+                {roomGroups.map(({ room, items: roomItems }) => (
+                  <div key={room.id}>
+                    <RoomHeader
+                      room={room}
+                      itemCount={roomItems.length}
+                      onAdd={() => router.push(`/jobs/${params.id}/items/add?room_id=${room.id}&room_name=${encodeURIComponent(room.name)}`)}
+                    />
+                    <div className="flex flex-col gap-[10px]">
+                      {roomItems.map((item) => (
+                        <ItemCard key={item.id} item={item} onDelete={() => setDeleteTargetId(item.id)} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+
+                {/* Add another room */}
+                <Button
+                  variant="secondary"
+                  fullWidth
+                  onClick={() => router.push(`/jobs/${params.id}/items/add?room=1`)}
+                >
+                  Add another room
+                </Button>
+              </div>
+            ) : (
+              /* ── Flat list (no rooms / quick fix) ── */
+              <div className="flex flex-col gap-[10px] mb-aq-lg">
+                {items.map((item) => (
+                  <ItemCard key={item.id} item={item} onDelete={() => setDeleteTargetId(item.id)} />
+                ))}
+              </div>
+            )}
 
             {/* Running total */}
             <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg mb-aq-lg">
@@ -173,7 +249,7 @@ export default function JobItemsPage() {
               <Button
                 variant="secondary"
                 fullWidth
-                onClick={() => router.push(`/jobs/${params.id}/items/add`)}
+                onClick={() => router.push(`/jobs/${params.id}/items/add?room=1`)}
               >
                 Add another item
               </Button>

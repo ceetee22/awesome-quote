@@ -9,7 +9,7 @@ import {
   PART_CATEGORY,
   PART_CATEGORY_LABELS,
 } from '@/lib/constants'
-import { getPartsByFitsAndFixes, getParts } from '@/lib/db'
+import { getPartsByFitsAndFixes, getParts, createJobRoom } from '@/lib/db'
 import { useJob } from '@/lib/job-context'
 import { useSettings } from '@/lib/settings-context'
 import { formatCurrency, calcGst } from '@/lib/pricing'
@@ -127,6 +127,11 @@ const FILTER_CATEGORIES = [
   PART_CATEGORY.SEALS,
 ]
 
+const ROOM_PILLS = {
+  residential: ['Lounge', 'Kitchen', 'Master bedroom', 'Bedroom', 'Bathroom', 'Ensuite', 'Hallway', 'Laundry', 'Garage', 'Office', 'Dining room'],
+  commercial:  ['Reception', 'Office', 'Meeting room', 'Kitchen', 'Bathroom', 'Warehouse', 'Showroom', 'Workshop', 'Entrance', 'Storeroom', 'Staff room'],
+}
+
 export default function AddItemPage() {
   const params = useParams()
   const router = useRouter()
@@ -141,11 +146,18 @@ export default function AddItemPage() {
   const [beforePhotos, setBeforePhotos] = useState([])
 
   const [step, setStep] = useState('type')
+  const [isSubsequentItem, setIsSubsequentItem] = useState(false)
   const [joineryType, setJoineryType] = useState(null)
   const [faultValue, setFaultValue] = useState(null)
   const [faultLabel, setFaultLabel] = useState('')
   const [partState, setPartState] = useState({})
   const [loadingParts, setLoadingParts] = useState(false)
+
+  // Room state
+  const [roomMode, setRoomMode] = useState('residential')
+  const [selectedRoom, setSelectedRoom] = useState(null) // { id, name } | null
+  const [customRoomInput, setCustomRoomInput] = useState('')
+  const [templateInfo, setTemplateInfo] = useState(null)
 
   // Labour + callout state (set in parts step, saved to job on proceed)
   const [labourHours, setLabourHours] = useState(() => currentJob?.labour_hours || 1)
@@ -166,13 +178,32 @@ export default function AddItemPage() {
   const [searchCategory, setSearchCategory] = useState(null)
   const [showSearch, setShowSearch] = useState(false)
 
-  // Read ?type= URL param on mount to skip straight to fault step
+  // Read URL params on mount to set initial step
   useEffect(() => {
+    const saved = localStorage.getItem('aq_room_mode')
+    if (saved) setRoomMode(saved)
+
     const urlParams = new URLSearchParams(window.location.search)
-    const typeParam = urlParams.get('type')
-    if (typeParam && FAULT_OPTIONS[typeParam]) {
-      setJoineryType(typeParam)
-      setStep('fault')
+    const roomIdParam = urlParams.get('room_id')
+    const roomNameParam = urlParams.get('room_name')
+    const roomParam = urlParams.get('room')
+
+    if (roomIdParam && roomNameParam) {
+      // Pre-selected room (from items page "+ Add" link) — skip room selector
+      setSelectedRoom({ id: roomIdParam, name: decodeURIComponent(roomNameParam) })
+      setIsSubsequentItem(true)
+      setStep('type')
+    } else if (roomParam === '1') {
+      // Show room selector (subsequent item or "Add another room")
+      setIsSubsequentItem(true)
+      setStep('room')
+    } else {
+      // First item — check ?type= param
+      const typeParam = urlParams.get('type')
+      if (typeParam && FAULT_OPTIONS[typeParam]) {
+        setJoineryType(typeParam)
+        setStep('fault')
+      }
     }
   }, [])
 
@@ -186,7 +217,16 @@ export default function AddItemPage() {
   // ── Navigation ────────────────────────────────────────────────────────────
 
   function handleBack() {
-    if (step === 'fault') {
+    if (step === 'room') {
+      router.push('/')
+    } else if (step === 'type') {
+      if (isSubsequentItem) {
+        setStep('room')
+        setJoineryType(null)
+      } else {
+        router.push('/')
+      }
+    } else if (step === 'fault') {
       setStep('type')
       setJoineryType(null)
     } else if (step === 'parts') {
@@ -197,12 +237,25 @@ export default function AddItemPage() {
       setSearchQuery('')
       setSearchCategory(null)
       setShowSearch(false)
+      setTemplateInfo(null)
     } else {
       router.push('/')
     }
   }
 
   // ── Step transitions ──────────────────────────────────────────────────────
+
+  async function handleSelectRoom(name) {
+    const roomName = (name || '').trim()
+    if (!roomName) return
+    try {
+      const room = await createJobRoom(currentJob.id, roomName)
+      setSelectedRoom({ id: room?.id || null, name: roomName })
+    } catch {
+      setSelectedRoom({ id: null, name: roomName })
+    }
+    setStep('type')
+  }
 
   function selectJoineryType(type) {
     setJoineryType(type)
@@ -216,14 +269,42 @@ export default function AddItemPage() {
     setSearchQuery('')
     setSearchCategory(null)
     setShowSearch(false)
+    setTemplateInfo(null)
     setLoadingParts(true)
     setStep('parts')
 
-    const suggestions = await getPartsByFitsAndFixes(joineryType, option.value)
+    const [suggestions, tmplRes] = await Promise.all([
+      getPartsByFitsAndFixes(joineryType, option.value),
+      fetch(`/api/repair-templates/match?joinery_type=${joineryType}&fault=${encodeURIComponent(option.label)}`)
+        .then((r) => r.ok ? r.json() : null)
+        .catch(() => null),
+    ])
+
     const initial = {}
     suggestions.forEach((p) => {
       initial[p.id] = { part: p, qty: p.default_qty || 1, selected: false }
     })
+
+    if (tmplRes && tmplRes.id) {
+      setTemplateInfo(tmplRes)
+      ;(tmplRes.parts || []).forEach((tp) => {
+        if (initial[tp.part_id]) {
+          // Already in suggestions — mark as selected with template qty
+          initial[tp.part_id] = { ...initial[tp.part_id], qty: tp.qty, selected: true }
+        } else {
+          // Not in suggestions — add with minimal part object
+          initial[tp.part_id] = {
+            part: { id: tp.part_id, name: tp.name, sell_price: tp.sell_price || 0, sku: '', unit: 'each', active: true },
+            qty: tp.qty,
+            selected: true,
+          }
+        }
+      })
+      if (tmplRes.labour_minutes > 0) {
+        setLabourHours(tmplRes.labour_minutes / 60)
+      }
+    }
+
     setPartState(initial)
     setLoadingParts(false)
   }
@@ -276,6 +357,9 @@ export default function AddItemPage() {
       labour_hours: 0,
       hourly_rate: hourlyRate,
       photos: beforePhotos,
+      room_id: selectedRoom?.id || null,
+      room_name: selectedRoom?.name || null,
+      template_id: templateInfo?.id || null,
     })
 
     setCurrentJob((prev) => prev ? { ...prev, labour_hours: labourHours, callout_fee: calloutFee } : prev)
@@ -290,7 +374,10 @@ export default function AddItemPage() {
     commitCurrentItem()
     setItemId(uuidv4())
     setBeforePhotos([])
-    setStep('type')
+    setStep('room')
+    setIsSubsequentItem(true)
+    setSelectedRoom(null)
+    setCustomRoomInput('')
     setJoineryType(null)
     setFaultValue(null)
     setFaultLabel('')
@@ -298,7 +385,7 @@ export default function AddItemPage() {
     setSearchQuery('')
     setSearchCategory(null)
     setShowSearch(false)
-    // Clear the ?type= param from the URL so back navigation works correctly
+    setTemplateInfo(null)
     window.history.replaceState(null, '', `/jobs/${params.id}/items/add`)
   }
 
@@ -376,9 +463,17 @@ export default function AddItemPage() {
 
   const faultOptions = joineryType ? FAULT_OPTIONS[joineryType] : []
 
+  const roomTitles = { residential: 'Where in the house?', commercial: 'Where on site?', units: 'Which unit?' }
   let pageTitle = 'Add item'
   let pageSubtitle = null
   let backLabel = 'Home'
+  if (step === 'room') {
+    pageTitle = roomTitles[roomMode]
+    backLabel = 'Home'
+  }
+  if (step === 'type' && isSubsequentItem) {
+    backLabel = 'Location'
+  }
   if (step === 'fault') {
     pageTitle = JOINERY_TYPE_LABELS[joineryType]
     pageSubtitle = "What's the fault?"
@@ -386,7 +481,7 @@ export default function AddItemPage() {
   }
   if (step === 'parts') {
     pageTitle = `${JOINERY_TYPE_LABELS[joineryType]}, ${faultLabel}`
-    pageSubtitle = 'Suggested parts for this fault'
+    pageSubtitle = templateInfo ? 'Standard rate loaded' : 'Suggested parts for this fault'
     backLabel = 'Fault'
   }
 
@@ -397,13 +492,143 @@ export default function AddItemPage() {
         {/* Header */}
         <div className="flex items-center gap-aq-sm py-aq-xl">
           <BackButton onClick={handleBack} label={backLabel} />
-          <div className="ml-aq-sm">
+          <div className="ml-aq-sm flex-1 min-w-0">
             <h1 className="text-page-title font-medium text-aq-ink">{pageTitle}</h1>
-            {pageSubtitle && (
+            {pageSubtitle && step !== 'parts' && (
               <p className="text-secondary text-aq-muted">{pageSubtitle}</p>
+            )}
+            {/* Room tag badge — shown on type/fault/parts steps when a room is selected */}
+            {selectedRoom && step !== 'room' && (
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', marginTop: 4,
+                padding: '2px 10px', borderRadius: 20,
+                background: '#E6F7F0', border: '1px solid #C5E8D5',
+                color: '#147A5A', fontSize: 12, fontWeight: 600, lineHeight: 1.5,
+              }}>
+                {selectedRoom.name}
+              </span>
             )}
           </div>
         </div>
+
+        {/* ── Step 0: Room selector (subsequent items only) ── */}
+        {step === 'room' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Mode toggle */}
+            <div style={{ display: 'flex', gap: 8 }}>
+              {['residential', 'commercial', 'units'].map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => { setRoomMode(mode); localStorage.setItem('aq_room_mode', mode) }}
+                  style={{
+                    flex: 1, minHeight: 44, borderRadius: 10, fontSize: 13, fontWeight: 500,
+                    border: roomMode === mode ? '1.5px solid #22A67A' : '1.5px solid #E4EAE8',
+                    background: roomMode === mode ? '#E6F7F0' : '#FFFFFF',
+                    color: roomMode === mode ? '#22A67A' : '#8CA3A0',
+                    cursor: 'pointer', transition: 'background 150ms, border-color 150ms',
+                    WebkitTapHighlightColor: 'transparent',
+                  }}
+                >
+                  {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                </button>
+              ))}
+            </div>
+
+            {/* Room pills (residential + commercial) */}
+            {roomMode !== 'units' && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {(ROOM_PILLS[roomMode] || []).map((room) => (
+                  <button
+                    key={room}
+                    type="button"
+                    onClick={() => handleSelectRoom(room)}
+                    onPointerDown={(e) => { e.currentTarget.style.transform = 'translateY(2px)'; e.currentTarget.style.borderBottomWidth = '1px' }}
+                    onPointerUp={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.borderBottomWidth = '3px' }}
+                    onPointerLeave={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.borderBottomWidth = '3px' }}
+                    style={{
+                      minHeight: 48, padding: '0 14px', borderRadius: 10, fontSize: 15, fontWeight: 500,
+                      background: '#FFFFFF', border: '1px solid #E4EAE8', borderBottom: '3px solid #E4EAE8',
+                      color: '#4A5B68', cursor: 'pointer',
+                      transition: 'transform 80ms, border-bottom-width 80ms',
+                      WebkitTapHighlightColor: 'transparent',
+                    }}
+                  >
+                    {room}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Units: freeform input */}
+            {roomMode === 'units' && (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  type="text"
+                  value={customRoomInput}
+                  onChange={(e) => setCustomRoomInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSelectRoom(customRoomInput)}
+                  placeholder="e.g. Unit 3A, Apt 12, Level 2"
+                  className="w-full bg-white border border-aq-border rounded-aq-md min-h-tap px-4 text-body text-aq-ink placeholder:text-aq-subtle focus:outline-none focus:border-aq-green transition-colors"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleSelectRoom(customRoomInput)}
+                  disabled={!customRoomInput.trim()}
+                  style={{
+                    minHeight: 48, padding: '0 16px', borderRadius: 10, fontSize: 14, fontWeight: 500,
+                    background: '#22A67A', color: '#FFFFFF', border: 'none',
+                    cursor: customRoomInput.trim() ? 'pointer' : 'not-allowed',
+                    opacity: customRoomInput.trim() ? 1 : 0.4, flexShrink: 0,
+                  }}
+                >
+                  Use
+                </button>
+              </div>
+            )}
+
+            {/* Custom name field (all modes) */}
+            <div>
+              <p style={{ fontSize: 12, color: '#8CA3A0', marginBottom: 6, fontWeight: 500 }}>
+                {roomMode === 'units' ? 'Or type a custom location' : 'Or type a custom name'}
+              </p>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  type="text"
+                  value={roomMode !== 'units' ? customRoomInput : ''}
+                  onChange={(e) => setCustomRoomInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSelectRoom(customRoomInput)}
+                  placeholder="e.g. Living room, Deck"
+                  className={`bg-white border border-aq-border rounded-aq-md min-h-tap px-4 text-body text-aq-ink placeholder:text-aq-subtle focus:outline-none focus:border-aq-green transition-colors ${roomMode === 'units' ? 'hidden' : 'w-full'}`}
+                />
+                {roomMode !== 'units' && (
+                  <button
+                    type="button"
+                    onClick={() => handleSelectRoom(customRoomInput)}
+                    disabled={!customRoomInput.trim()}
+                    style={{
+                      minHeight: 48, padding: '0 16px', borderRadius: 10, fontSize: 14, fontWeight: 500,
+                      background: '#22A67A', color: '#FFFFFF', border: 'none',
+                      cursor: customRoomInput.trim() ? 'pointer' : 'not-allowed',
+                      opacity: customRoomInput.trim() ? 1 : 0.4, flexShrink: 0,
+                    }}
+                  >
+                    Use
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Skip link */}
+            <button
+              type="button"
+              onClick={() => { setSelectedRoom(null); setStep('type') }}
+              style={{ fontSize: 14, color: '#8CA3A0', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'center', padding: '8px 0', textDecoration: 'underline' }}
+            >
+              Skip rooms, just add items
+            </button>
+          </div>
+        )}
 
         {/* ── Step 1: Joinery type ── */}
         {step === 'type' && (
@@ -483,6 +708,26 @@ export default function AddItemPage() {
               <p className="text-body text-aq-muted text-center py-aq-2xl">Loading...</p>
             ) : (
               <>
+                {/* Template banner */}
+                {templateInfo && (
+                  <div style={{
+                    background: '#E6F7F0', border: '1px solid #C5E8D5', borderRadius: 12,
+                    padding: '12px 16px', display: 'flex', gap: 12, alignItems: 'flex-start',
+                  }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="#22A67A" aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }}>
+                      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                    </svg>
+                    <div>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: '#147A5A', margin: 0 }}>Standard rate loaded</p>
+                      <p style={{ fontSize: 13, color: '#22A67A', margin: '2px 0 0' }}>
+                        {templateInfo.times_used > 0
+                          ? `Based on your last ${templateInfo.times_used} quote${templateInfo.times_used !== 1 ? 's' : ''} for this repair`
+                          : 'Parts and labour pre-filled from your standard rate'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Added parts tray */}
                 {selectedParts.length > 0 && (
                   <div style={{ background: '#E6F7F0', border: '1px solid #C5E8D5', borderRadius: 12, overflow: 'hidden' }}>
