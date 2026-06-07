@@ -455,7 +455,14 @@ export default function AddItemPage() {
   )
   const allPartsTotal = currentItemPartsTotal + prevItemsPartsTotal
   const labourTotal = labourHours * hourlyRate
-  const subtotal = allPartsTotal + labourTotal + calloutFee
+
+  const hasTemplatePrice = templateInfo?.price > 0
+  const templatePriceIncGst = hasTemplatePrice ? Number(templateInfo.price) : 0
+  const templatePriceExGst = templatePriceIncGst / (1 + GST_RATE / 100)
+
+  const subtotal = hasTemplatePrice
+    ? templatePriceExGst + prevItemsPartsTotal + calloutFee
+    : allPartsTotal + labourTotal + calloutFee
   const gstAmount = calcGst(subtotal, GST_RATE)
   const grandTotal = subtotal + gstAmount
 
@@ -720,7 +727,9 @@ export default function AddItemPage() {
                     <div>
                       <p style={{ fontSize: 14, fontWeight: 600, color: '#147A5A', margin: 0 }}>Standard rate loaded</p>
                       <p style={{ fontSize: 13, color: '#22A67A', margin: '2px 0 0' }}>
-                        {templateInfo.times_used > 0
+                        {hasTemplatePrice
+                          ? `${formatCurrency(templatePriceIncGst)} (GST incl.) from your rate card`
+                          : templateInfo.times_used > 0
                           ? `Based on your last ${templateInfo.times_used} quote${templateInfo.times_used !== 1 ? 's' : ''} for this repair`
                           : 'Parts and labour pre-filled from your standard rate'}
                       </p>
@@ -912,7 +921,9 @@ export default function AddItemPage() {
                 {/* Live total bar */}
                 <div style={{ background: '#1F2D37', borderRadius: 12, padding: 16 }}>
                   <p style={{ fontSize: 13, color: '#8CA3A0', margin: '0 0 8px', lineHeight: 1.5 }}>
-                    Parts {formatCurrency(allPartsTotal)} + Labour {formatCurrency(labourTotal)} + Callout {formatCurrency(calloutFee)}
+                    {hasTemplatePrice
+                      ? `Standard rate ${formatCurrency(templatePriceIncGst)} + Callout ${formatCurrency(calloutFee)}`
+                      : `Parts ${formatCurrency(allPartsTotal)} + Labour ${formatCurrency(labourTotal)} + Callout ${formatCurrency(calloutFee)}`}
                   </p>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                     <p style={{ fontSize: 15, color: '#FFFFFF', margin: 0 }}>Total (incl. GST)</p>

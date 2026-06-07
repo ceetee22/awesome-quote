@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useJob } from '@/lib/job-context'
 import { useSettings } from '@/lib/settings-context'
 import StatusBadge from '@/components/StatusBadge'
-import { getPartsCount, updateBusiness } from '@/lib/db'
+import { getPartsCount, getRepairTemplatesCount, updateBusiness } from '@/lib/db'
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -282,6 +282,81 @@ function ActivityRow({ job }) {
   )
 }
 
+// ─── Pricing prompt card ───────────────────────────────────────────────────────
+
+function PricingPromptCard({ settings }) {
+  const [dismissed, setDismissed] = useState(false)
+  const [templateCount, setTemplateCount] = useState(null)
+  const [dismissCount, setDismissCount] = useState(0)
+
+  useEffect(() => {
+    const stored = parseInt(localStorage.getItem('aq_pricing_dismiss_count') || '0', 10)
+    setDismissCount(stored)
+    getRepairTemplatesCount().then(setTemplateCount)
+  }, [])
+
+  if (!settings?.setup_complete) return null
+  if (settings?.pricing_wizard_dismissed) return null
+  if (dismissed) return null
+  if (templateCount === null) return null
+  if (templateCount > 0) return null
+
+  function handleLater() {
+    const next = dismissCount + 1
+    localStorage.setItem('aq_pricing_dismiss_count', String(next))
+    setDismissCount(next)
+    setDismissed(true)
+  }
+
+  function handleDontShow() {
+    updateBusiness({ pricing_wizard_dismissed: true })
+    setDismissed(true)
+  }
+
+  return (
+    <div style={{ background: '#FEF7E6', border: '1px solid #F5E2B0', borderRadius: 12, padding: 16, marginBottom: 16 }}>
+      <p style={{ fontSize: 16, fontWeight: 600, color: '#1F2D37', margin: '0 0 4px' }}>Set your standard prices</p>
+      <p style={{ fontSize: 13, color: '#4A5B68', margin: '0 0 4px' }}>
+        Price your 5 most common repairs so quotes auto-fill instantly
+      </p>
+      <p style={{ fontSize: 12, color: '#854F0B', margin: '0 0 14px' }}>Takes about 2 minutes</p>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <Link
+          href="/quick-pricing"
+          style={{
+            flex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            minHeight: 44, borderRadius: 8, textDecoration: 'none',
+            background: '#F0B542', borderBottom: '2px solid #D9A03A', border: 'none',
+            color: '#1F2D37', fontSize: 15, fontWeight: 500,
+          }}
+        >
+          Set up now
+        </Link>
+        <button
+          type="button"
+          onClick={handleLater}
+          style={{
+            flex: 1, minHeight: 44, borderRadius: 8,
+            background: '#FFFFFF', border: '1px solid #E4EAE8',
+            color: '#4A5B68', fontSize: 15, fontWeight: 500, cursor: 'pointer',
+          }}
+        >
+          Later
+        </button>
+      </div>
+      {dismissCount >= 3 && (
+        <button
+          type="button"
+          onClick={handleDontShow}
+          style={{ marginTop: 10, background: 'none', border: 'none', color: '#8CA3A0', fontSize: 13, cursor: 'pointer', padding: '4px 0', display: 'block' }}
+        >
+          Don't show again
+        </button>
+      )}
+    </div>
+  )
+}
+
 // ─── Onboarding checklist ──────────────────────────────────────────────────────
 
 const QUOTED_STATUSES = new Set(['quoted', 'accepted', 'ordered', 'scheduled', 'completed', 'invoiced'])
@@ -402,6 +477,9 @@ export default function HomePage() {
 
         {/* Day progress — taps to Today view */}
         <DayProgressBar jobs={jobs} />
+
+        {/* Pricing prompt — shown until standard prices are set */}
+        <PricingPromptCard settings={settings} />
 
         {/* New job — full width, always visible, never moves */}
         <Link
