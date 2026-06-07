@@ -50,7 +50,7 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  const { joinery_type, fault, labour_minutes, parts } = body || {}
+  const { joinery_type, fault, price, parts, is_custom, custom_name } = body || {}
   if (!joinery_type || !fault) {
     return NextResponse.json({ error: 'joinery_type and fault are required' }, { status: 400 })
   }
@@ -70,7 +70,9 @@ export async function POST(request) {
         business_id: biz.id,
         joinery_type,
         fault,
-        labour_minutes: labour_minutes ?? 0,
+        price: price != null ? parseFloat(price) : null,
+        is_custom: is_custom ?? false,
+        custom_name: custom_name ?? null,
         parts: parts ?? [],
         updated_at: new Date().toISOString(),
       },
