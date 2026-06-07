@@ -38,11 +38,13 @@ export async function POST(request) {
   }
 
   // Step 2: verify business ownership via user session (belt-and-suspenders)
-  const { data: biz, error: bizError } = await userClient
+  const { data: bizArr, error: bizError } = await userClient
     .from('businesses')
     .select('id')
     .eq('owner_id', user.id)
-    .maybeSingle()
+    .order('created_at', { ascending: true })
+    .limit(1)
+  const biz = bizArr?.[0]
 
   if (!biz) {
     console.error('copy-from-master: no business for user', user.id, bizError?.message)
