@@ -145,8 +145,9 @@ export default function AddItemPage() {
   const [itemId, setItemId] = useState(() => uuidv4())
   const [beforePhotos, setBeforePhotos] = useState([])
 
-  const [step, setStep] = useState('type')
-  const [isSubsequentItem, setIsSubsequentItem] = useState(false)
+  const [step, setStep] = useState('room')
+  const [skippedRoomStep, setSkippedRoomStep] = useState(false)
+  const [usedRooms, setUsedRooms] = useState({}) // { roomName: itemCount }
   const [joineryType, setJoineryType] = useState(null)
   const [faultValue, setFaultValue] = useState(null)
   const [faultLabel, setFaultLabel] = useState('')
@@ -186,25 +187,20 @@ export default function AddItemPage() {
     const urlParams = new URLSearchParams(window.location.search)
     const roomIdParam = urlParams.get('room_id')
     const roomNameParam = urlParams.get('room_name')
-    const roomParam = urlParams.get('room')
+    const typeParam = urlParams.get('type')
 
     if (roomIdParam && roomNameParam) {
-      // Pre-selected room (from items page "+ Add" link) — skip room selector
+      // Pre-selected room from items page "+" link — skip room selector
       setSelectedRoom({ id: roomIdParam, name: decodeURIComponent(roomNameParam) })
-      setIsSubsequentItem(true)
+      setSkippedRoomStep(true)
       setStep('type')
-    } else if (roomParam === '1') {
-      // Show room selector (subsequent item or "Add another room")
-      setIsSubsequentItem(true)
-      setStep('room')
-    } else {
-      // First item — check ?type= param
-      const typeParam = urlParams.get('type')
-      if (typeParam && FAULT_OPTIONS[typeParam]) {
-        setJoineryType(typeParam)
-        setStep('fault')
-      }
+    } else if (typeParam && FAULT_OPTIONS[typeParam]) {
+      // Direct type param (legacy items page link)
+      setJoineryType(typeParam)
+      setSkippedRoomStep(true)
+      setStep('fault')
     }
+    // default: step='room'
   }, [])
 
   // Load full catalogue when parts step is reached
@@ -218,13 +214,13 @@ export default function AddItemPage() {
 
   function handleBack() {
     if (step === 'room') {
-      router.push('/')
+      router.push(`/jobs/${params.id}`)
     } else if (step === 'type') {
-      if (isSubsequentItem) {
+      if (skippedRoomStep) {
+        router.back()
+      } else {
         setStep('room')
         setJoineryType(null)
-      } else {
-        router.push('/')
       }
     } else if (step === 'fault') {
       setStep('type')
@@ -363,6 +359,13 @@ export default function AddItemPage() {
     })
 
     setCurrentJob((prev) => prev ? { ...prev, labour_hours: labourHours, callout_fee: calloutFee } : prev)
+
+    if (selectedRoom?.name) {
+      setUsedRooms((prev) => ({
+        ...prev,
+        [selectedRoom.name]: (prev[selectedRoom.name] || 0) + 1,
+      }))
+    }
   }
 
   function handleReviewAndSend() {
@@ -370,12 +373,45 @@ export default function AddItemPage() {
     router.push(`/jobs/${params.id}/quote`)
   }
 
-  function handleAddAnotherItem() {
+  function handleAddAnotherSameRoom() {
+    commitCurrentItem()
+    setItemId(uuidv4())
+    setBeforePhotos([])
+    setStep('type')
+    setJoineryType(null)
+    setFaultValue(null)
+    setFaultLabel('')
+    setPartState({})
+    setSearchQuery('')
+    setSearchCategory(null)
+    setShowSearch(false)
+    setTemplateInfo(null)
+    window.history.replaceState(null, '', `/jobs/${params.id}/items/add`)
+  }
+
+  function handleNextRoom() {
     commitCurrentItem()
     setItemId(uuidv4())
     setBeforePhotos([])
     setStep('room')
-    setIsSubsequentItem(true)
+    setSelectedRoom(null)
+    setCustomRoomInput('')
+    setJoineryType(null)
+    setFaultValue(null)
+    setFaultLabel('')
+    setPartState({})
+    setSearchQuery('')
+    setSearchCategory(null)
+    setShowSearch(false)
+    setTemplateInfo(null)
+    window.history.replaceState(null, '', `/jobs/${params.id}/items/add`)
+  }
+
+  function handleAddAnotherItem() {
+    commitCurrentItem()
+    setItemId(uuidv4())
+    setBeforePhotos([])
+    setStep('type')
     setSelectedRoom(null)
     setCustomRoomInput('')
     setJoineryType(null)
@@ -473,13 +509,13 @@ export default function AddItemPage() {
   const roomTitles = { residential: 'Where in the house?', commercial: 'Where on site?', units: 'Which unit?' }
   let pageTitle = 'Add item'
   let pageSubtitle = null
-  let backLabel = 'Home'
+  let backLabel = 'Back'
   if (step === 'room') {
     pageTitle = roomTitles[roomMode]
-    backLabel = 'Home'
+    backLabel = 'Back'
   }
-  if (step === 'type' && isSubsequentItem) {
-    backLabel = 'Location'
+  if (step === 'type') {
+    backLabel = skippedRoomStep ? 'Back' : 'Location'
   }
   if (step === 'fault') {
     pageTitle = JOINERY_TYPE_LABELS[joineryType]
@@ -545,25 +581,43 @@ export default function AddItemPage() {
             {/* Room pills (residential + commercial) */}
             {roomMode !== 'units' && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {(ROOM_PILLS[roomMode] || []).map((room) => (
-                  <button
-                    key={room}
-                    type="button"
-                    onClick={() => handleSelectRoom(room)}
-                    onPointerDown={(e) => { e.currentTarget.style.transform = 'translateY(2px)'; e.currentTarget.style.borderBottomWidth = '1px' }}
-                    onPointerUp={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.borderBottomWidth = '3px' }}
-                    onPointerLeave={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.borderBottomWidth = '3px' }}
-                    style={{
-                      minHeight: 48, padding: '0 14px', borderRadius: 10, fontSize: 15, fontWeight: 500,
-                      background: '#FFFFFF', border: '1px solid #E4EAE8', borderBottom: '3px solid #E4EAE8',
-                      color: '#4A5B68', cursor: 'pointer',
-                      transition: 'transform 80ms, border-bottom-width 80ms',
-                      WebkitTapHighlightColor: 'transparent',
-                    }}
-                  >
-                    {room}
-                  </button>
-                ))}
+                {(ROOM_PILLS[roomMode] || []).map((room) => {
+                  const usedCount = usedRooms[room] || 0
+                  const isUsed = usedCount > 0
+                  return (
+                    <button
+                      key={room}
+                      type="button"
+                      onClick={() => handleSelectRoom(room)}
+                      onPointerDown={(e) => { e.currentTarget.style.transform = 'translateY(2px)'; e.currentTarget.style.borderBottomWidth = '1px' }}
+                      onPointerUp={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.borderBottomWidth = '3px' }}
+                      onPointerLeave={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.borderBottomWidth = '3px' }}
+                      style={{
+                        minHeight: 48, padding: '0 14px', borderRadius: 10, fontSize: 15, fontWeight: 500,
+                        background: isUsed ? '#E6F7F0' : '#FFFFFF',
+                        border: `1px solid ${isUsed ? '#C5E8D5' : '#E4EAE8'}`,
+                        borderBottom: `3px solid ${isUsed ? '#C5E8D5' : '#E4EAE8'}`,
+                        color: isUsed ? '#147A5A' : '#4A5B68',
+                        cursor: 'pointer',
+                        transition: 'transform 80ms, border-bottom-width 80ms',
+                        WebkitTapHighlightColor: 'transparent',
+                        display: 'flex', alignItems: 'center', gap: 6,
+                      }}
+                    >
+                      {isUsed && (
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#22A67A" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      )}
+                      <span>{room}</span>
+                      {isUsed && (
+                        <span style={{ fontSize: 12, color: '#22A67A', fontWeight: 400 }}>
+                          ({usedCount} {usedCount === 1 ? 'item' : 'items'})
+                        </span>
+                      )}
+                    </button>
+                  )
+                })}
               </div>
             )}
 
@@ -625,6 +679,49 @@ export default function AddItemPage() {
                 )}
               </div>
             </div>
+
+            {/* Used custom rooms (names not in the standard pill list) */}
+            {(() => {
+              const standardPills = new Set([
+                ...(ROOM_PILLS.residential || []),
+                ...(ROOM_PILLS.commercial || []),
+              ])
+              const customUsed = Object.keys(usedRooms).filter((n) => !standardPills.has(n))
+              if (customUsed.length === 0) return null
+              return (
+                <div>
+                  <p style={{ fontSize: 12, color: '#8CA3A0', marginBottom: 6, fontWeight: 500 }}>Used locations</p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {customUsed.map((room) => (
+                      <button
+                        key={room}
+                        type="button"
+                        onClick={() => handleSelectRoom(room)}
+                        onPointerDown={(e) => { e.currentTarget.style.transform = 'translateY(2px)'; e.currentTarget.style.borderBottomWidth = '1px' }}
+                        onPointerUp={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.borderBottomWidth = '3px' }}
+                        onPointerLeave={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.borderBottomWidth = '3px' }}
+                        style={{
+                          minHeight: 48, padding: '0 14px', borderRadius: 10, fontSize: 15, fontWeight: 500,
+                          background: '#E6F7F0', border: '1px solid #C5E8D5', borderBottom: '3px solid #C5E8D5',
+                          color: '#147A5A', cursor: 'pointer',
+                          transition: 'transform 80ms, border-bottom-width 80ms',
+                          WebkitTapHighlightColor: 'transparent',
+                          display: 'flex', alignItems: 'center', gap: 6,
+                        }}
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#22A67A" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                        <span>{room}</span>
+                        <span style={{ fontSize: 12, color: '#22A67A', fontWeight: 400 }}>
+                          ({usedRooms[room]} {usedRooms[room] === 1 ? 'item' : 'items'})
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )
+            })()}
 
             {/* Skip link */}
             <button
@@ -952,11 +1049,22 @@ export default function AddItemPage() {
       {step === 'parts' && !loadingParts && (
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-aq-border px-aq-lg py-aq-md">
           <div className="max-w-[480px] mx-auto flex flex-col gap-aq-sm">
+            {selectedRoom ? (
+              <>
+                <Button variant="secondary" fullWidth onClick={handleAddAnotherSameRoom}>
+                  Add another to {selectedRoom.name}
+                </Button>
+                <Button variant="secondary" fullWidth onClick={handleNextRoom}>
+                  Next room
+                </Button>
+              </>
+            ) : (
+              <Button variant="secondary" fullWidth onClick={handleAddAnotherItem}>
+                Add another item
+              </Button>
+            )}
             <Button variant="primary" fullWidth onClick={handleReviewAndSend}>
               Review and send
-            </Button>
-            <Button variant="secondary" fullWidth onClick={handleAddAnotherItem}>
-              Add another item
             </Button>
           </div>
         </div>
