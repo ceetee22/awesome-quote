@@ -1,12 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
-  <rect width="192" height="192" rx="43" fill="#22A67A"/>
-  <text
-    x="96"
-    y="130"
-    font-family="Inter, system-ui, -apple-system, sans-serif"
-    font-weight="500"
-    font-size="110"
-    fill="#FFFFFF"
-    text-anchor="middle"
-  >J</text>
-</svg>
+<?xml version="1.0" encoding="UTF-8"?><svg id="a" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2000 2000"><defs><style>.b{fill:#388346;}.c{fill:#fff;}</style></defs><rect class="b" width="2000" height="2000" rx="155.92" ry="155.92"/><circle class="c" cx="979.99" cy="1239.19" r="457.17"/><circle class="b" cx="979.99" cy="1239.19" r="193.21"/><rect class="b" x="384.88" y="590.74" width="788.12" height="648.46"/><rect class="c" x="1173.2" y="346.87" width="263.96" height="892.32"/><rect class="c" x="762.14" y="346.87" width="419" height="243.86"/></svg>

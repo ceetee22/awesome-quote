@@ -234,6 +234,13 @@ export default function SetupPage() {
 
   return (
     <div style={pageStyle}>
+      <img
+        src="/logo.svg"
+        alt="Jotey"
+        width={48}
+        height={48}
+        style={{ display: 'block', marginBottom: 20 }}
+      />
       <div style={cardStyle}>
         <ProgressDots current={step} />
 

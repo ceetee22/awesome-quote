@@ -1385,10 +1385,11 @@ export default function PlannerPage() {
         }}>
           {/* Brand — sits above the backlog column */}
           <div style={{ width: 257, flexShrink: 0, padding: '10px 16px 10px 20px', display: 'flex', alignItems: 'center' }}>
-            <h1 style={{ margin: 0, display: 'flex', alignItems: 'baseline', gap: 5 }}>
-              <span style={{ fontSize: 18, fontWeight: 500, color: '#22A67A', letterSpacing: '-0.3px' }}>Jotey</span>
+            <div style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <img src="/logo.svg" alt="" aria-hidden="true" width={32} height={32} style={{ display: 'block', flexShrink: 0 }} />
+              <img src="/wordmark.svg" alt="Jotey" width={100} style={{ display: 'block', height: 'auto', flexShrink: 0 }} />
               <span style={{ fontSize: 15, fontWeight: 400, color: '#4A5B68' }}>Planner</span>
-            </h1>
+            </div>
           </div>
 
           {/* Nav controls — sits above the calendar grid */}

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
+import AuthBrand from '@/components/AuthBrand'
 
 const inputClass =
   'w-full bg-white border border-aq-border rounded-aq-md min-h-tap px-4 text-body text-aq-ink placeholder:text-aq-subtle focus:outline-none focus:border-aq-green transition-colors duration-150'
@@ -41,12 +42,7 @@ export default function ForgotPasswordPage() {
     <div className="min-h-dvh bg-aq-surface flex flex-col items-center justify-center px-aq-lg">
       <div className="w-full max-w-[360px]">
 
-        {/* Brand */}
-        <div className="flex flex-col items-center mb-aq-2xl">
-          <div className="w-16 h-16 rounded-aq-xl bg-aq-green flex items-center justify-center mb-aq-md">
-            <span className="text-white font-bold text-xl select-none">J</span>
-          </div>
-        </div>
+        <AuthBrand />
 
         {sent ? (
           <div className="text-center">

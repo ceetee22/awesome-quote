@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { createBusiness } from '@/lib/db'
+import AuthBrand from '@/components/AuthBrand'
 
 const inputClass = 'w-full bg-white border border-aq-border rounded-aq-md min-h-tap px-4 text-body text-aq-ink placeholder:text-aq-subtle focus:outline-none focus:border-aq-green transition-colors duration-150'
 
@@ -68,9 +69,7 @@ export default function SignupPage() {
     return (
       <div className="min-h-dvh bg-aq-surface flex flex-col items-center justify-center px-aq-lg">
         <div className="w-full max-w-[400px] text-center">
-          <div className="w-16 h-16 rounded-aq-xl bg-aq-green flex items-center justify-center mb-aq-lg mx-auto">
-            <span className="text-white font-bold text-xl select-none">J</span>
-          </div>
+          <AuthBrand />
           <h1 className="text-section font-medium text-aq-ink mb-aq-sm">Check your email</h1>
           <p className="text-secondary text-aq-muted mb-aq-xl">
             We sent a verification link to <strong>{email}</strong>. Click the link to activate your account.
@@ -86,12 +85,7 @@ export default function SignupPage() {
   return (
     <div className="min-h-dvh bg-aq-surface flex flex-col items-center justify-center px-aq-lg py-aq-2xl">
       <div className="w-full max-w-[400px]">
-        <div className="flex flex-col items-center mb-aq-2xl">
-          <div className="w-16 h-16 rounded-aq-xl bg-aq-green flex items-center justify-center mb-aq-md">
-            <span className="text-white font-bold text-xl select-none">J</span>
-          </div>
-          <h1 className="text-page-title font-medium text-aq-ink">Jotey</h1>
-        </div>
+        <AuthBrand />
 
         <h2 className="text-section font-medium text-aq-ink mb-aq-xs text-center">Create your account</h2>
         <p className="text-secondary text-aq-muted mb-aq-xl text-center">Get started with your free Jotey account.</p>
