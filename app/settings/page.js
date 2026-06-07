@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { v4 as uuidv4 } from 'uuid'
 import { useSettings } from '@/lib/settings-context'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
@@ -12,7 +13,9 @@ import {
   updateSupplier,
   deleteSupplier,
   setDefaultSupplier,
+  getRepairTemplatesCount,
 } from '@/lib/db'
+import { TOTAL_TEMPLATE_COUNT } from '@/lib/constants'
 import Button from '@/components/Button'
 import BackButton from '@/components/BackButton'
 import ConfirmModal from '@/components/ConfirmModal'
@@ -289,6 +292,11 @@ export default function SettingsPage() {
   const router = useRouter()
   const { settings, updateSettings, settingsLoaded } = useSettings()
   const [signOutModalOpen, setSignOutModalOpen] = useState(false)
+  const [templatesCount, setTemplatesCount] = useState(null)
+
+  useEffect(() => {
+    getRepairTemplatesCount().then(setTemplatesCount)
+  }, [])
 
   async function handleSignOut() {
     const supabase = createSupabaseBrowserClient()
@@ -658,6 +666,24 @@ export default function SettingsPage() {
                 </div>
               </div>
             </div>
+
+            {/* Standard rates */}
+            <Link
+              href="/settings/standard-rates"
+              className="bg-white border border-aq-border rounded-aq-xl p-aq-lg flex items-center justify-between gap-aq-sm min-h-tap hover:border-aq-green transition-colors duration-150"
+            >
+              <div>
+                <p className="text-secondary font-medium text-aq-ink">Standard rates</p>
+                <p className="text-caption text-aq-muted">
+                  {templatesCount === null
+                    ? 'Loading...'
+                    : `${templatesCount} of ${TOTAL_TEMPLATE_COUNT} configured`}
+                </p>
+              </div>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-aq-muted shrink-0">
+                <path d="M6 4l4 4-4 4" />
+              </svg>
+            </Link>
 
             {/* Callout zones */}
             <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg">
