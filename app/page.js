@@ -9,6 +9,16 @@ import { getPartsCount, updateBusiness } from '@/lib/db'
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
+function buildNavUrl(address, navApp) {
+  const enc = encodeURIComponent(address)
+  switch (navApp) {
+    case 'apple_maps': return `https://maps.apple.com/?daddr=${enc}`
+    case 'waze': return `https://waze.com/ul?q=${enc}&navigate=yes`
+    case 'system_default': return `geo:0,0?q=${enc}`
+    default: return `https://www.google.com/maps/dir/?api=1&destination=${enc}`
+  }
+}
+
 function getGreeting() {
   const h = new Date().getHours()
   if (h < 12) return 'Good morning'
@@ -111,7 +121,7 @@ function SmartPromptCard({ prompt }) {
     const { job } = prompt
     const summary = jobSummary(job)
     const mapsUrl = job.customer_address
-      ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(job.customer_address)}`
+      ? buildNavUrl(job.customer_address, settings.preferred_nav_app)
       : null
 
     return (
