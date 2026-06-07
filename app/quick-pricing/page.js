@@ -221,7 +221,7 @@ export default function QuickPricingPage() {
           })}
         </div>
 
-        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#FFFFFF', borderTop: '1px solid #E4EAE8', padding: '12px 16px' }}>
+        <div style={{ position: 'fixed', bottom: 56, left: 0, right: 0, background: '#FFFFFF', borderTop: '1px solid #E4EAE8', padding: '12px 16px' }}>
           <div style={{ maxWidth: 480, margin: '0 auto' }}>
             <p style={{ fontSize: 13, color: '#8CA3A0', textAlign: 'center', margin: '0 0 10px' }}>
               {selected.size} selected
@@ -305,7 +305,7 @@ export default function QuickPricingPage() {
           <p style={{ fontSize: 13, color: '#8CA3A0', textAlign: 'center', margin: 0 }}>GST inclusive</p>
         </div>
 
-        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#FFFFFF', borderTop: '1px solid #E4EAE8', padding: '12px 16px' }}>
+        <div style={{ position: 'fixed', bottom: 56, left: 0, right: 0, background: '#FFFFFF', borderTop: '1px solid #E4EAE8', padding: '12px 16px' }}>
           <div style={{ maxWidth: 480, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
             <button
               type="button"
@@ -382,7 +382,7 @@ export default function QuickPricingPage() {
         )}
       </div>
 
-      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#FFFFFF', borderTop: '1px solid #E4EAE8', padding: '12px 16px' }}>
+      <div style={{ position: 'fixed', bottom: 56, left: 0, right: 0, background: '#FFFFFF', borderTop: '1px solid #E4EAE8', padding: '12px 16px' }}>
         <div style={{ maxWidth: 480, margin: '0 auto' }}>
           <button
             type="button"

@@ -1376,7 +1376,7 @@ export default function PlannerPage() {
 
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#F6F8F7', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 56px)', background: '#F6F8F7', overflow: 'hidden' }}>
 
         {/* ── Header bar ── */}
         <div style={{

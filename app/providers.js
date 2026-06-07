@@ -3,7 +3,6 @@
 import { JobProvider } from '@/lib/job-context'
 import { SettingsProvider } from '@/lib/settings-context'
 import BottomNav from '@/components/BottomNav'
-import FeedbackButton from '@/components/FeedbackButton'
 import { usePathname, useRouter } from 'next/navigation'
 import { useSettings } from '@/lib/settings-context'
 import { useEffect } from 'react'
@@ -46,8 +45,7 @@ export default function Providers({ children }) {
       <JobProvider>
         <Guards />
         {children}
-        {!pathname?.startsWith('/planner') && !pathname?.startsWith('/quick-pricing') && <BottomNav />}
-        <FeedbackButton />
+        <BottomNav />
       </JobProvider>
     </SettingsProvider>
   )

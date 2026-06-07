@@ -9,6 +9,9 @@ import { getRepairTemplatesCount, getSuppliers } from '@/lib/db'
 import ConfirmModal from '@/components/ConfirmModal'
 import BackButton from '@/components/BackButton'
 
+const ADMIN_USER_ID = process.env.NEXT_PUBLIC_ADMIN_USER_ID || ''
+const FEEDBACK_EMAIL = process.env.NEXT_PUBLIC_FEEDBACK_EMAIL || 'vetearii.thomas@fatpukus.co.nz'
+
 // ── Icon containers ───────────────────────────────────────────────────────────
 
 function IconBox({ bg, stroke, children }) {
@@ -114,6 +117,23 @@ function IconLock() {
   )
 }
 
+function IconChat() {
+  return (
+    <IconBox bg="#F0F2F1" stroke="#4A5B68">
+      <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+    </IconBox>
+  )
+}
+
+function IconDownload() {
+  return (
+    <IconBox bg="#F0F2F1" stroke="#4A5B68">
+      <path d="M12 2v13M7 10l5 5 5-5" />
+      <path d="M20 17v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2" />
+    </IconBox>
+  )
+}
+
 // ── Menu primitives ───────────────────────────────────────────────────────────
 
 function Chevron() {
@@ -124,41 +144,47 @@ function Chevron() {
   )
 }
 
-function MenuRow({ icon, name, badge, description, value, href, isFirst }) {
-  return (
-    <Link href={href} style={{ display: 'block', textDecoration: 'none' }}>
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px',
-        minHeight: 64, borderTop: isFirst ? 'none' : '1px solid #F0F2F1',
-      }}>
-        {icon}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 15, fontWeight: 600, color: '#1F2D37' }}>{name}</span>
-            {badge && (
-              <span style={{ fontSize: 10, fontWeight: 600, background: '#E6F7F0', color: '#147A5A', borderRadius: 4, padding: '2px 6px', lineHeight: 1.4 }}>
-                {badge}
-              </span>
-            )}
-          </div>
-          {description && <p style={{ fontSize: 12, color: '#8CA3A0', margin: 0, marginTop: 2 }}>{description}</p>}
+function MenuRow({ icon, name, badge, description, value, href, onClick, isFirst }) {
+  const inner = (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px',
+      minHeight: 64, borderTop: isFirst ? 'none' : '1px solid #F0F2F1',
+    }}>
+      {icon}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 15, fontWeight: 600, color: '#1F2D37' }}>{name}</span>
+          {badge && (
+            <span style={{ fontSize: 10, fontWeight: 600, background: '#E6F7F0', color: '#147A5A', borderRadius: 4, padding: '2px 6px', lineHeight: 1.4 }}>
+              {badge}
+            </span>
+          )}
         </div>
-        {value && (
-          <span style={{ fontSize: 14, fontWeight: 600, color: '#22A67A', flexShrink: 0, maxWidth: 130, textAlign: 'right' }}>
-            {value}
-          </span>
-        )}
-        <Chevron />
+        {description && <p style={{ fontSize: 12, color: '#8CA3A0', margin: 0, marginTop: 2 }}>{description}</p>}
       </div>
-    </Link>
+      {value && (
+        <span style={{ fontSize: 14, fontWeight: 600, color: '#22A67A', flexShrink: 0, maxWidth: 130, textAlign: 'right' }}>
+          {value}
+        </span>
+      )}
+      <Chevron />
+    </div>
   )
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} style={{ display: 'block', width: '100%', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0, WebkitTapHighlightColor: 'transparent' }}>
+        {inner}
+      </button>
+    )
+  }
+  return <Link href={href} style={{ display: 'block', textDecoration: 'none' }}>{inner}</Link>
 }
 
 function MenuCard({ items }) {
   return (
     <div style={{ background: '#FFFFFF', border: '1px solid #E4EAE8', borderRadius: 12, overflow: 'hidden' }}>
       {items.map((item, idx) => (
-        <MenuRow key={item.href} {...item} isFirst={idx === 0} />
+        <MenuRow key={item.href || item.name} {...item} isFirst={idx === 0} />
       ))}
     </div>
   )
@@ -187,11 +213,45 @@ export default function SettingsPage() {
   const [signOutModalOpen, setSignOutModalOpen] = useState(false)
   const [templatesCount, setTemplatesCount] = useState(null)
   const [supplierCount, setSupplierCount] = useState(null)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [deferredPrompt, setDeferredPrompt] = useState(null)
+  const [isStandalone, setIsStandalone] = useState(false)
 
   useEffect(() => {
     getRepairTemplatesCount().then(setTemplatesCount)
     getSuppliers().then((s) => setSupplierCount(s.length))
+
+    setIsStandalone(window.matchMedia('(display-mode: standalone)').matches)
+
+    function handleInstallPrompt(e) {
+      e.preventDefault()
+      setDeferredPrompt(e)
+    }
+    window.addEventListener('beforeinstallprompt', handleInstallPrompt)
+
+    if (ADMIN_USER_ID) {
+      const supabase = createSupabaseBrowserClient()
+      if (supabase) {
+        supabase.auth.getUser().then(({ data: { user } }) => {
+          if (user?.id === ADMIN_USER_ID) setIsAdmin(true)
+        })
+      }
+    }
+
+    return () => window.removeEventListener('beforeinstallprompt', handleInstallPrompt)
   }, [])
+
+  async function handleInstall() {
+    if (!deferredPrompt) return
+    deferredPrompt.prompt()
+    const { outcome } = await deferredPrompt.userChoice
+    if (outcome === 'accepted') setDeferredPrompt(null)
+  }
+
+  function handleFeedback() {
+    const subject = encodeURIComponent('Jotey beta feedback')
+    window.location.href = `mailto:${FEEDBACK_EMAIL}?subject=${subject}`
+  }
 
   async function handleSignOut() {
     const supabase = createSupabaseBrowserClient()
@@ -280,10 +340,19 @@ export default function SettingsPage() {
             {/* Account */}
             <div>
               <GroupLabel label="Account" />
-              <MenuCard items={[
-                { icon: <IconCompass />, name: 'Navigation app', value: navApp, href: '/settings/navigation' },
-                { icon: <IconLock />, name: 'Change password', href: '/settings/password' },
-              ]} />
+              {(() => {
+                const items = [
+                  { icon: <IconCompass />, name: 'Navigation app', value: navApp, href: '/settings/navigation' },
+                  { icon: <IconLock />, name: 'Change password', href: '/settings/password' },
+                ]
+                if (!isStandalone && deferredPrompt) {
+                  items.push({ icon: <IconDownload />, name: 'Add to home screen', description: 'Use Jotey like a native app', onClick: handleInstall })
+                }
+                if (!isAdmin) {
+                  items.push({ icon: <IconChat />, name: 'Send feedback', description: 'Help us improve Jotey', onClick: handleFeedback })
+                }
+                return <MenuCard items={items} />
+              })()}
             </div>
 
           </div>
