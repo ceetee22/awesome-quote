@@ -6,7 +6,9 @@ import { usePathname } from 'next/navigation'
 // Auth/public pages and onboarding flows
 const HIDDEN_STARTS = ['/login', '/signup', '/forgot-password', '/reset-password', '/accept', '/setup', '/deactivated', '/auth']
 // Task-focused pages where the user should complete the flow, not navigate away
-const HIDDEN_INCLUDES = ['/items/add', '/items/custom', '/items/rubber', '/quote', '/order']
+const HIDDEN_INCLUDES = ['/items/add', '/items/custom', '/items/rubber', '/quote', '/order', '/complete']
+// Job completion flow — match by path end so /invoicing (list page) is not hidden
+const HIDDEN_ENDS = ['/invoice', '/invoice/adjust']
 
 const TABS = [
   {
@@ -71,7 +73,8 @@ export default function BottomNav() {
 
   if (
     HIDDEN_STARTS.some((p) => pathname.startsWith(p)) ||
-    HIDDEN_INCLUDES.some((p) => pathname.includes(p))
+    HIDDEN_INCLUDES.some((p) => pathname.includes(p)) ||
+    HIDDEN_ENDS.some((p) => pathname.endsWith(p))
   ) return null
 
   return (

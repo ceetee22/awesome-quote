@@ -203,7 +203,7 @@ function SmartPromptCard({ prompt }) {
           {prompt.count} {prompt.count === 1 ? 'job' : 'jobs'} ready to invoice
         </p>
         <Link
-          href="/quotes"
+          href="/invoicing"
           style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: 48, paddingLeft: 24, paddingRight: 24, borderRadius: 10, backgroundColor: '#E8940D', color: '#FFFFFF', fontSize: 15, fontWeight: 500, textDecoration: 'none' }}
         >
           Invoice now

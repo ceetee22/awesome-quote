@@ -196,8 +196,6 @@ export default function JobDetailPage() {
   }
 
   const [xeroModalOpen, setXeroModalOpen]         = useState(false)
-  const [completeModalOpen, setCompleteModalOpen] = useState(false)
-  const [invoiceModalOpen, setInvoiceModalOpen]   = useState(false)
   const [declineModalOpen, setDeclineModalOpen]   = useState(false)
   const [payModalOpen, setPayModalOpen]           = useState(false)
   const [unpayModalOpen, setUnpayModalOpen]       = useState(false)
@@ -294,25 +292,6 @@ export default function JobDetailPage() {
       completed_at: prev.completed_at || new Date().toISOString(),
     }))
     setXeroModalOpen(false)
-  }
-
-  function handleCompleteConfirm() {
-    setCurrentJob((prev) => ({
-      ...prev,
-      status: 'completed',
-      completed_at: new Date().toISOString(),
-    }))
-    setCompleteModalOpen(false)
-    setInvoiceModalOpen(true)
-  }
-
-  function handleInvoiceConfirm() {
-    setCurrentJob((prev) => ({ ...prev, status: 'invoiced' }))
-    setInvoiceModalOpen(false)
-  }
-
-  function handleInvoiceLater() {
-    setInvoiceModalOpen(false)
   }
 
   function handleDeclineConfirm() {
@@ -708,7 +687,7 @@ export default function JobDetailPage() {
             {scheduleOpen ? 'Cancel' : 'Schedule return visit'}
           </Button>
           {status !== 'completed' && status !== 'invoiced' && (
-            <Button variant="secondary" fullWidth onClick={() => setCompleteModalOpen(true)}>
+            <Button variant="secondary" fullWidth onClick={() => router.push(`/jobs/${params.id}/complete`)}>
               Job completed
             </Button>
           )}
@@ -791,7 +770,7 @@ export default function JobDetailPage() {
 
       <div className="flex flex-col gap-aq-sm">
         {status !== 'completed' && status !== 'invoiced' && (
-          <Button variant="primary" fullWidth onClick={() => setCompleteModalOpen(true)}>
+          <Button variant="primary" fullWidth onClick={() => router.push(`/jobs/${params.id}/complete`)}>
             Job completed
           </Button>
         )}
@@ -854,8 +833,8 @@ export default function JobDetailPage() {
 
       <div className="flex flex-col gap-aq-sm">
         {status === 'completed' && (
-          <Button variant="primary" fullWidth onClick={() => setXeroModalOpen(true)}>
-            Send to Xero
+          <Button variant="primary" fullWidth onClick={() => router.push(`/jobs/${params.id}/invoice`)}>
+            Invoice job
           </Button>
         )}
         <Button variant="secondary" fullWidth onClick={handleDownloadPdf}>
@@ -920,25 +899,6 @@ export default function JobDetailPage() {
         cancelLabel="Not yet"
         onConfirm={handleXeroConfirm}
         onCancel={() => setXeroModalOpen(false)}
-      />
-
-      <ConfirmModal
-        open={completeModalOpen}
-        question="Mark this job as completed?"
-        confirmLabel="Yes, complete"
-        cancelLabel="Not yet"
-        onConfirm={handleCompleteConfirm}
-        onCancel={() => setCompleteModalOpen(false)}
-      />
-
-      <ConfirmModal
-        open={invoiceModalOpen}
-        question="Send this job to Xero?"
-        detail={`This creates a draft invoice for ${formatCurrency(jobTotal)} in Xero.`}
-        confirmLabel="Yes, send"
-        cancelLabel="Not now"
-        onConfirm={handleInvoiceConfirm}
-        onCancel={handleInvoiceLater}
       />
 
       <ConfirmModal
