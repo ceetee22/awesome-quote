@@ -8,10 +8,13 @@ import Button from '@/components/Button'
 import BackButton from '@/components/BackButton'
 import StatusBadge from '@/components/StatusBadge'
 import ConfirmModal from '@/components/ConfirmModal'
+import { getRoomColour } from '@/lib/rooms'
 
 function RoomHeader({ room, itemCount, onAdd }) {
+  const colour = getRoomColour(room.name)
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, marginTop: 4 }}>
+      <div style={{ width: 4, height: 20, borderRadius: 2, background: colour, flexShrink: 0 }} />
       <p style={{ fontSize: 15, fontWeight: 600, color: '#1F2D37', flex: 1 }}>{room.name}</p>
       <span style={{ fontSize: 13, color: '#8CA3A0' }}>{itemCount} item{itemCount !== 1 ? 's' : ''}</span>
       <button
@@ -35,8 +38,10 @@ function ItemCard({ item, onDelete }) {
     ? [item.joinery_type_label, item.fault_label].filter(Boolean).join(' - ')
     : null
 
+  const roomColour = getRoomColour(item.room_name)
+
   return (
-    <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg">
+    <div className="bg-white border border-aq-border rounded-aq-xl p-aq-lg" style={{ borderLeft: `4px solid ${roomColour}` }}>
       {/* Heading */}
       <div className="mb-aq-sm">
         {item.type === 'diagnosed' ? (

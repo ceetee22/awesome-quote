@@ -8,6 +8,7 @@ import { formatCurrency, calcGst } from '@/lib/pricing'
 import { JOB_SOURCE, JOB_SOURCE_LABELS } from '@/lib/constants'
 import { generateQuotePdf, downloadBlob } from '@/lib/generate-quote-pdf'
 import { trackTemplateUsage } from '@/lib/db'
+import { getRoomColour } from '@/lib/rooms'
 import Button from '@/components/Button'
 import BackButton from '@/components/BackButton'
 import Stepper from '@/components/Stepper'
@@ -639,7 +640,10 @@ export default function QuotePage() {
                   )}
                   {partsGroupedByRoom.rooms.map((room, rIdx) => (
                     <div key={room.roomId} className={rIdx > 0 || partsGroupedByRoom.noRoom.length > 0 ? 'mt-aq-md' : ''}>
-                      <p style={{ fontSize: 10, fontWeight: 600, color: '#8CA3A0', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>{room.name}</p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                        <div style={{ width: 4, height: 14, borderRadius: 2, background: getRoomColour(room.name), flexShrink: 0 }} />
+                        <p style={{ fontSize: 10, fontWeight: 600, color: '#8CA3A0', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{room.name}</p>
+                      </div>
                       <div className="border-t border-aq-border mb-aq-sm" />
                       {groupPartsByItem(room.parts).map((group, gIdx) => {
                         const groupTotal = group.parts.reduce((s, p) => s + p.sell_price * p.qty, 0)

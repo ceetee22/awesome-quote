@@ -10,6 +10,7 @@ import {
   PART_CATEGORY_LABELS,
 } from '@/lib/constants'
 import { getPartsByFitsAndFixes, getParts, createJobRoom } from '@/lib/db'
+import { getRoomColour, getRoomTint, getRoomColourCategory, ROOM_COLOURS, ROOM_TINTS } from '@/lib/rooms'
 import { useJob } from '@/lib/job-context'
 import { useSettings } from '@/lib/settings-context'
 import { formatCurrency, calcGst } from '@/lib/pricing'
@@ -155,9 +156,10 @@ export default function AddItemPage() {
   const [loadingParts, setLoadingParts] = useState(false)
 
   // Room state
-  const [roomMode, setRoomMode] = useState('residential')
   const [selectedRoom, setSelectedRoom] = useState(null) // { id, name } | null
   const [customRoomInput, setCustomRoomInput] = useState('')
+  const [showAllRooms, setShowAllRooms] = useState(false)
+  const [inputFocused, setInputFocused] = useState(false)
   const [templateInfo, setTemplateInfo] = useState(null)
 
   // Labour + callout state (set in parts step, saved to job on proceed)
@@ -181,9 +183,6 @@ export default function AddItemPage() {
 
   // Read URL params on mount to set initial step
   useEffect(() => {
-    const saved = localStorage.getItem('aq_room_mode')
-    if (saved) setRoomMode(saved)
-
     const urlParams = new URLSearchParams(window.location.search)
     const roomIdParam = urlParams.get('room_id')
     const roomNameParam = urlParams.get('room_name')
@@ -396,6 +395,7 @@ export default function AddItemPage() {
     setStep('room')
     setSelectedRoom(null)
     setCustomRoomInput('')
+    setShowAllRooms(false)
     setJoineryType(null)
     setFaultValue(null)
     setFaultLabel('')
@@ -502,16 +502,31 @@ export default function AddItemPage() {
   const gstAmount = calcGst(subtotal, GST_RATE)
   const grandTotal = subtotal + gstAmount
 
+  // ── Room selector data ────────────────────────────────────────────────────
+
+  const DEFAULT_ROOMS = ['Lounge', 'Kitchen', 'Bedroom', 'Bathroom', 'Master bed']
+  const ALL_ROOMS = {
+    residential: ['Lounge', 'Kitchen', 'Master bed', 'Bedroom', 'Bathroom', 'Ensuite', 'Hallway', 'Laundry', 'Garage', 'Office', 'Dining room', 'Deck'],
+    commercial:  ['Reception', 'Office', 'Meeting room', 'Kitchen', 'Bathroom', 'Warehouse', 'Workshop', 'Showroom', 'Staff room', 'Storeroom'],
+  }
+
+  function getAutoRoomName(baseName) {
+    const existingNames = new Set((currentJob?.rooms || []).map((r) => r.name))
+    if (!existingNames.has(baseName)) return baseName
+    let n = 2
+    while (existingNames.has(`${baseName} ${n}`)) n++
+    return `${baseName} ${n}`
+  }
+
   // ── Titles ────────────────────────────────────────────────────────────────
 
   const faultOptions = joineryType ? FAULT_OPTIONS[joineryType] : []
 
-  const roomTitles = { residential: 'Where in the house?', commercial: 'Where on site?', units: 'Which unit?' }
   let pageTitle = 'Add item'
   let pageSubtitle = null
   let backLabel = 'Back'
   if (step === 'room') {
-    pageTitle = roomTitles[roomMode]
+    pageTitle = Object.keys(usedRooms).length > 0 ? 'Next room' : 'Which room?'
     backLabel = 'Back'
   }
   if (step === 'type') {
@@ -554,185 +569,146 @@ export default function AddItemPage() {
           </div>
         </div>
 
-        {/* ── Step 0: Room selector (subsequent items only) ── */}
-        {step === 'room' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {/* Mode toggle */}
-            <div style={{ display: 'flex', gap: 8 }}>
-              {['residential', 'commercial', 'units'].map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => { setRoomMode(mode); localStorage.setItem('aq_room_mode', mode) }}
-                  style={{
-                    flex: 1, minHeight: 44, borderRadius: 10, fontSize: 13, fontWeight: 500,
-                    border: roomMode === mode ? '1.5px solid #22A67A' : '1.5px solid #E4EAE8',
-                    background: roomMode === mode ? '#E6F7F0' : '#FFFFFF',
-                    color: roomMode === mode ? '#22A67A' : '#8CA3A0',
-                    cursor: 'pointer', transition: 'background 150ms, border-color 150ms',
-                    WebkitTapHighlightColor: 'transparent',
-                  }}
-                >
-                  {mode.charAt(0).toUpperCase() + mode.slice(1)}
-                </button>
-              ))}
-            </div>
+        {/* ── Step 0: Room selector ── */}
+        {step === 'room' && (() => {
+          const hasUsed = Object.keys(usedRooms).length > 0
+          const query = customRoomInput.trim().toLowerCase()
+          const usedList = Object.keys(usedRooms)
+          const unusedDefaults = DEFAULT_ROOMS.filter((n) => !usedRooms[n])
+          const allSearchable = [...new Set([...ALL_ROOMS.residential, ...ALL_ROOMS.commercial])]
+          const searchResults = query ? allSearchable.filter((n) => n.toLowerCase().includes(query)) : null
 
-            {/* Room pills (residential + commercial) */}
-            {roomMode !== 'units' && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {(ROOM_PILLS[roomMode] || []).map((room) => {
-                  const usedCount = usedRooms[room] || 0
-                  const isUsed = usedCount > 0
-                  return (
-                    <button
-                      key={room}
-                      type="button"
-                      onClick={() => handleSelectRoom(room)}
-                      onPointerDown={(e) => { e.currentTarget.style.transform = 'translateY(2px)'; e.currentTarget.style.borderBottomWidth = '1px' }}
-                      onPointerUp={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.borderBottomWidth = '3px' }}
-                      onPointerLeave={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.borderBottomWidth = '3px' }}
-                      style={{
-                        minHeight: 48, padding: '0 14px', borderRadius: 10, fontSize: 15, fontWeight: 500,
-                        background: isUsed ? '#E6F7F0' : '#FFFFFF',
-                        border: `1px solid ${isUsed ? '#C5E8D5' : '#E4EAE8'}`,
-                        borderBottom: `3px solid ${isUsed ? '#C5E8D5' : '#E4EAE8'}`,
-                        color: isUsed ? '#147A5A' : '#4A5B68',
-                        cursor: 'pointer',
-                        transition: 'transform 80ms, border-bottom-width 80ms',
-                        WebkitTapHighlightColor: 'transparent',
-                        display: 'flex', alignItems: 'center', gap: 6,
-                      }}
-                    >
-                      {isUsed && (
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#22A67A" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                      )}
-                      <span>{room}</span>
-                      {isUsed && (
-                        <span style={{ fontSize: 12, color: '#22A67A', fontWeight: 400 }}>
-                          ({usedCount} {usedCount === 1 ? 'item' : 'items'})
-                        </span>
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
-            )}
+          // Room button — called as a function, not a component, to avoid remount issues
+          function roomBtn(name) {
+            const col = getRoomColour(name)
+            const tint = getRoomTint(name)
+            const count = usedRooms[name] || 0
+            const isUsed = count > 0
+            return (
+              <button
+                key={name}
+                type="button"
+                onClick={() => { handleSelectRoom(getAutoRoomName(name)); if (query) setCustomRoomInput('') }}
+                onPointerDown={(e) => { e.currentTarget.style.borderBottomWidth = '1px' }}
+                onPointerUp={(e) => { e.currentTarget.style.borderBottomWidth = '3px' }}
+                onPointerLeave={(e) => { e.currentTarget.style.borderBottomWidth = '3px' }}
+                style={{
+                  position: 'relative', overflow: 'hidden',
+                  background: isUsed ? tint.bg : '#FFFFFF',
+                  border: `1px solid ${isUsed ? tint.border : '#E4EAE8'}`,
+                  borderBottom: `3px solid ${isUsed ? tint.border : '#E4EAE8'}`,
+                  borderRadius: 12, padding: '14px 12px 14px 16px',
+                  display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
+                  textAlign: 'left', cursor: 'pointer', minHeight: 48,
+                  WebkitTapHighlightColor: 'transparent',
+                  transition: 'border-bottom-width 80ms',
+                }}
+              >
+                <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: col, borderRadius: '11px 0 0 11px' }} />
+                <span style={{ fontSize: 15, fontWeight: 500, color: '#1F2D37' }}>{name}</span>
+                {isUsed && <span style={{ fontSize: 12, color: '#8CA3A0', marginTop: 2 }}>{count} {count === 1 ? 'item' : 'items'}</span>}
+              </button>
+            )
+          }
 
-            {/* Units: freeform input */}
-            {roomMode === 'units' && (
-              <div style={{ display: 'flex', gap: 8 }}>
+          function groupLabel(label) {
+            return <p key={label} style={{ fontSize: 11, fontWeight: 600, color: '#8CA3A0', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '4px 0 0' }}>{label}</p>
+          }
+
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+              {/* Search / custom name input */}
+              <div style={{ position: 'relative' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8CA3A0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
+                  <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
+                </svg>
                 <input
                   type="text"
                   value={customRoomInput}
                   onChange={(e) => setCustomRoomInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSelectRoom(customRoomInput)}
-                  placeholder="e.g. Unit 3A, Apt 12, Level 2"
-                  className="w-full bg-white border border-aq-border rounded-aq-md min-h-tap px-4 text-body text-aq-ink placeholder:text-aq-subtle focus:outline-none focus:border-aq-green transition-colors"
-                />
-                <button
-                  type="button"
-                  onClick={() => handleSelectRoom(customRoomInput)}
-                  disabled={!customRoomInput.trim()}
-                  style={{
-                    minHeight: 48, padding: '0 16px', borderRadius: 10, fontSize: 14, fontWeight: 500,
-                    background: '#22A67A', color: '#FFFFFF', border: 'none',
-                    cursor: customRoomInput.trim() ? 'pointer' : 'not-allowed',
-                    opacity: customRoomInput.trim() ? 1 : 0.4, flexShrink: 0,
+                  onFocus={() => setInputFocused(true)}
+                  onBlur={() => setInputFocused(false)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && customRoomInput.trim()) {
+                      handleSelectRoom(getAutoRoomName(customRoomInput.trim()))
+                      setCustomRoomInput('')
+                    }
                   }}
-                >
-                  Use
-                </button>
-              </div>
-            )}
-
-            {/* Custom name field (all modes) */}
-            <div>
-              <p style={{ fontSize: 12, color: '#8CA3A0', marginBottom: 6, fontWeight: 500 }}>
-                {roomMode === 'units' ? 'Or type a custom location' : 'Or type a custom name'}
-              </p>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input
-                  type="text"
-                  value={roomMode !== 'units' ? customRoomInput : ''}
-                  onChange={(e) => setCustomRoomInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSelectRoom(customRoomInput)}
-                  placeholder="e.g. Living room, Deck"
-                  className={`bg-white border border-aq-border rounded-aq-md min-h-tap px-4 text-body text-aq-ink placeholder:text-aq-subtle focus:outline-none focus:border-aq-green transition-colors ${roomMode === 'units' ? 'hidden' : 'w-full'}`}
+                  placeholder="Type a room name"
+                  style={{
+                    width: '100%', height: 48, paddingLeft: 42, paddingRight: 16,
+                    borderRadius: 12, boxSizing: 'border-box',
+                    border: `1.5px solid ${inputFocused || customRoomInput ? '#22A67A' : '#E4EAE8'}`,
+                    fontSize: 15, color: '#1F2D37', background: '#FFFFFF', outline: 'none',
+                  }}
                 />
-                {roomMode !== 'units' && (
+              </div>
+
+              {/* Room grid */}
+              {searchResults ? (
+                /* Search results */
+                searchResults.length > 0 ? (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    {searchResults.map((r) => roomBtn(r))}
+                  </div>
+                ) : (
                   <button
                     type="button"
-                    onClick={() => handleSelectRoom(customRoomInput)}
-                    disabled={!customRoomInput.trim()}
-                    style={{
-                      minHeight: 48, padding: '0 16px', borderRadius: 10, fontSize: 14, fontWeight: 500,
-                      background: '#22A67A', color: '#FFFFFF', border: 'none',
-                      cursor: customRoomInput.trim() ? 'pointer' : 'not-allowed',
-                      opacity: customRoomInput.trim() ? 1 : 0.4, flexShrink: 0,
-                    }}
+                    onClick={() => { handleSelectRoom(customRoomInput.trim()); setCustomRoomInput('') }}
+                    style={{ minHeight: 48, borderRadius: 12, border: '1.5px dashed #22A67A', background: '#E6F7F0', color: '#22A67A', fontSize: 15, fontWeight: 500, cursor: 'pointer', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, WebkitTapHighlightColor: 'transparent' }}
                   >
-                    Use
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                    Use "{customRoomInput.trim()}"
                   </button>
-                )}
-              </div>
-            </div>
-
-            {/* Used custom rooms (names not in the standard pill list) */}
-            {(() => {
-              const standardPills = new Set([
-                ...(ROOM_PILLS.residential || []),
-                ...(ROOM_PILLS.commercial || []),
-              ])
-              const customUsed = Object.keys(usedRooms).filter((n) => !standardPills.has(n))
-              if (customUsed.length === 0) return null
-              return (
-                <div>
-                  <p style={{ fontSize: 12, color: '#8CA3A0', marginBottom: 6, fontWeight: 500 }}>Used locations</p>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                    {customUsed.map((room) => (
-                      <button
-                        key={room}
-                        type="button"
-                        onClick={() => handleSelectRoom(room)}
-                        onPointerDown={(e) => { e.currentTarget.style.transform = 'translateY(2px)'; e.currentTarget.style.borderBottomWidth = '1px' }}
-                        onPointerUp={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.borderBottomWidth = '3px' }}
-                        onPointerLeave={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.borderBottomWidth = '3px' }}
-                        style={{
-                          minHeight: 48, padding: '0 14px', borderRadius: 10, fontSize: 15, fontWeight: 500,
-                          background: '#E6F7F0', border: '1px solid #C5E8D5', borderBottom: '3px solid #C5E8D5',
-                          color: '#147A5A', cursor: 'pointer',
-                          transition: 'transform 80ms, border-bottom-width 80ms',
-                          WebkitTapHighlightColor: 'transparent',
-                          display: 'flex', alignItems: 'center', gap: 6,
-                        }}
-                      >
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#22A67A" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                        <span>{room}</span>
-                        <span style={{ fontSize: 12, color: '#22A67A', fontWeight: 400 }}>
-                          ({usedRooms[room]} {usedRooms[room] === 1 ? 'item' : 'items'})
-                        </span>
-                      </button>
-                    ))}
+                )
+              ) : showAllRooms ? (
+                /* Expanded grouped list */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {usedList.length > 0 && (
+                    <>
+                      {groupLabel('Used rooms')}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        {usedList.map((r) => roomBtn(r))}
+                      </div>
+                    </>
+                  )}
+                  {groupLabel('Residential')}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    {ALL_ROOMS.residential.map((r) => roomBtn(r))}
+                  </div>
+                  {groupLabel('Commercial')}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    {ALL_ROOMS.commercial.map((r) => roomBtn(r))}
                   </div>
                 </div>
-              )
-            })()}
+              ) : (
+                /* Default grid: used rooms + unused defaults + More */
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  {usedList.map((r) => roomBtn(r))}
+                  {unusedDefaults.map((r) => roomBtn(r))}
+                  <button
+                    type="button"
+                    onClick={() => setShowAllRooms(true)}
+                    style={{ minHeight: 48, borderRadius: 12, padding: '14px 16px', border: '1.5px dashed #E4EAE8', background: '#FFFFFF', fontSize: 15, fontWeight: 500, color: '#8CA3A0', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', WebkitTapHighlightColor: 'transparent' }}
+                  >
+                    More
+                  </button>
+                </div>
+              )}
 
-            {/* Skip link */}
-            <button
-              type="button"
-              onClick={() => { setSelectedRoom(null); setStep('type') }}
-              style={{ fontSize: 14, color: '#8CA3A0', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'center', padding: '8px 0', textDecoration: 'underline' }}
-            >
-              Skip rooms, just add items
-            </button>
-          </div>
-        )}
+              {/* Skip / Done link */}
+              <button
+                type="button"
+                onClick={() => { setSelectedRoom(null); setStep('type') }}
+                style={{ fontSize: 14, color: '#8CA3A0', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'center', padding: '8px 0', textDecoration: 'underline' }}
+              >
+                {hasUsed ? 'Done adding items' : 'Skip rooms'}
+              </button>
+
+            </div>
+          )
+        })()}
 
         {/* ── Step 1: Joinery type ── */}
         {step === 'type' && (
