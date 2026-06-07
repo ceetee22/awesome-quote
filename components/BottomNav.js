@@ -1,12 +1,13 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 
 // Auth and onboarding pages only — every other route shows the nav
 const HIDDEN_STARTS = ['/login', '/signup', '/forgot-password', '/reset-password', '/setup', '/auth']
 
-const TABS = [
+const STATIC_TABS = [
   {
     href: '/',
     label: 'Home',
@@ -25,19 +26,6 @@ const TABS = [
     icon: (
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-      </svg>
-    ),
-  },
-  {
-    href: '/today',
-    label: 'Today',
-    exact: false,
-    icon: (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-        <line x1="16" y1="2" x2="16" y2="6" />
-        <line x1="8" y1="2" x2="8" y2="6" />
-        <line x1="3" y1="10" x2="21" y2="10" />
       </svg>
     ),
   },
@@ -64,10 +52,34 @@ const TABS = [
   },
 ]
 
+const SCHEDULE_ICON = (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+    <line x1="16" y1="2" x2="16" y2="6" />
+    <line x1="8" y1="2" x2="8" y2="6" />
+    <line x1="3" y1="10" x2="21" y2="10" />
+  </svg>
+)
+
 export default function BottomNav() {
   const pathname = usePathname()
+  const router = useRouter()
+  const [isDesktop, setIsDesktop] = useState(false)
+
+  useEffect(() => {
+    const check = () => setIsDesktop(window.innerWidth >= 1024)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   if (HIDDEN_STARTS.some((p) => pathname.startsWith(p))) return null
+
+  const scheduleActive = pathname.startsWith('/today') || pathname.startsWith('/planner')
+
+  function handleScheduleClick() {
+    router.push(isDesktop ? '/planner' : '/today')
+  }
 
   return (
     <nav
@@ -75,21 +87,63 @@ export default function BottomNav() {
       aria-label="Main navigation"
     >
       <div className="max-w-[480px] mx-auto flex items-center justify-around">
-        {TABS.map((tab) => {
-          const active = tab.exact ? pathname === tab.href : pathname.startsWith(tab.href)
-          return (
-            <Link
-              key={tab.href}
-              href={tab.href}
-              className={`flex flex-col items-center justify-center gap-[3px] flex-1 min-h-[56px] transition-colors duration-150 ${
-                active ? 'text-aq-green' : 'text-aq-muted hover:text-aq-ink'
-              }`}
-            >
-              {tab.icon}
-              <span className="text-[11px] font-medium leading-none">{tab.label}</span>
-            </Link>
-          )
-        })}
+
+        {/* Home tab */}
+        <Link
+          href="/"
+          className={`flex flex-col items-center justify-center gap-[3px] flex-1 min-h-[56px] transition-colors duration-150 ${
+            pathname === '/' ? 'text-aq-green' : 'text-aq-muted hover:text-aq-ink'
+          }`}
+        >
+          {STATIC_TABS[0].icon}
+          <span className="text-[11px] font-medium leading-none">Home</span>
+        </Link>
+
+        {/* Quotes tab */}
+        <Link
+          href="/quotes"
+          className={`flex flex-col items-center justify-center gap-[3px] flex-1 min-h-[56px] transition-colors duration-150 ${
+            pathname.startsWith('/quotes') ? 'text-aq-green' : 'text-aq-muted hover:text-aq-ink'
+          }`}
+        >
+          {STATIC_TABS[1].icon}
+          <span className="text-[11px] font-medium leading-none">Quotes</span>
+        </Link>
+
+        {/* Schedule tab — /today on mobile, /planner on desktop */}
+        <button
+          type="button"
+          onClick={handleScheduleClick}
+          className={`flex flex-col items-center justify-center gap-[3px] flex-1 min-h-[56px] transition-colors duration-150 bg-transparent border-none cursor-pointer ${
+            scheduleActive ? 'text-aq-green' : 'text-aq-muted hover:text-aq-ink'
+          }`}
+        >
+          {SCHEDULE_ICON}
+          <span className="text-[11px] font-medium leading-none">Schedule</span>
+        </button>
+
+        {/* Catalogue tab */}
+        <Link
+          href="/catalogue"
+          className={`flex flex-col items-center justify-center gap-[3px] flex-1 min-h-[56px] transition-colors duration-150 ${
+            pathname.startsWith('/catalogue') ? 'text-aq-green' : 'text-aq-muted hover:text-aq-ink'
+          }`}
+        >
+          {STATIC_TABS[2].icon}
+          <span className="text-[11px] font-medium leading-none">Catalogue</span>
+        </Link>
+
+        {/* Settings tab */}
+        <Link
+          href="/settings"
+          className={`flex flex-col items-center justify-center gap-[3px] flex-1 min-h-[56px] transition-colors duration-150 ${
+            pathname.startsWith('/settings') ? 'text-aq-green' : 'text-aq-muted hover:text-aq-ink'
+          }`}
+        >
+          {STATIC_TABS[3].icon}
+          <span className="text-[11px] font-medium leading-none">Settings</span>
+        </Link>
+
       </div>
     </nav>
   )
