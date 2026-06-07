@@ -3,12 +3,8 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-// Auth/public pages and onboarding flows
-const HIDDEN_STARTS = ['/login', '/signup', '/forgot-password', '/reset-password', '/accept', '/setup', '/deactivated', '/auth']
-// Task-focused pages where the user should complete the flow, not navigate away
-const HIDDEN_INCLUDES = ['/items/add', '/items/custom', '/items/rubber', '/quote', '/order', '/complete']
-// Job completion flow — match by path end so /invoicing (list page) is not hidden
-const HIDDEN_ENDS = ['/invoice', '/invoice/adjust']
+// Auth and onboarding pages only — every other route shows the nav
+const HIDDEN_STARTS = ['/login', '/signup', '/forgot-password', '/reset-password', '/setup', '/auth']
 
 const TABS = [
   {
@@ -71,15 +67,11 @@ const TABS = [
 export default function BottomNav() {
   const pathname = usePathname()
 
-  if (
-    HIDDEN_STARTS.some((p) => pathname.startsWith(p)) ||
-    HIDDEN_INCLUDES.some((p) => pathname.includes(p)) ||
-    HIDDEN_ENDS.some((p) => pathname.endsWith(p))
-  ) return null
+  if (HIDDEN_STARTS.some((p) => pathname.startsWith(p))) return null
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 bg-white border-t border-aq-border z-40"
+      className="fixed bottom-0 left-0 right-0 bg-white border-t border-aq-border z-50"
       aria-label="Main navigation"
     >
       <div className="max-w-[480px] mx-auto flex items-center justify-around">

@@ -1030,7 +1030,7 @@ export default function AddItemPage() {
 
       {/* ── Fixed bottom actions (parts step only) ── */}
       {step === 'parts' && !loadingParts && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-aq-border px-aq-lg py-aq-md">
+        <div className="fixed bottom-[56px] left-0 right-0 bg-white border-t border-aq-border px-aq-lg py-aq-md">
           <div className="max-w-[480px] mx-auto flex flex-col gap-aq-sm">
             {selectedRoom ? (
               <>

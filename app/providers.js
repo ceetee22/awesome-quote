@@ -7,7 +7,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useSettings } from '@/lib/settings-context'
 import { useEffect } from 'react'
 
-const AUTH_PATHS = ['/login', '/signup', '/forgot-password', '/reset-password', '/auth']
+const AUTH_PATHS = ['/login', '/signup', '/forgot-password', '/reset-password', '/setup', '/auth']
 
 function Guards() {
   const { settings, settingsLoaded } = useSettings()
@@ -40,11 +40,14 @@ function Guards() {
 
 export default function Providers({ children }) {
   const pathname = usePathname()
+  const isAuth = AUTH_PATHS.some((p) => pathname.startsWith(p))
   return (
     <SettingsProvider>
       <JobProvider>
         <Guards />
-        {children}
+        <div style={isAuth ? undefined : { paddingBottom: 72 }}>
+          {children}
+        </div>
         <BottomNav />
       </JobProvider>
     </SettingsProvider>
