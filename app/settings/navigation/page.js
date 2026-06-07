@@ -57,7 +57,7 @@ export default function NavigationPage() {
                   className="w-full text-left"
                 >
                   <div
-                    style={{ borderRadius: '12px', minHeight: '60px', padding: '14px 16px', borderWidth: '2px', borderStyle: 'solid', display: 'flex', alignItems: 'center', gap: '16px', backgroundColor: isSelected ? '#E6F7F0' : '#ffffff', borderColor: isSelected ? '#22A67A' : '#E5E7EB', transition: 'border-color 150ms, background-color 150ms' }}
+                    style={{ borderRadius: '12px', minHeight: '60px', padding: '14px 16px', borderWidth: '2px', borderStyle: 'solid', display: 'flex', alignItems: 'center', gap: '16px', backgroundColor: isSelected ? '#E6F7F0' : '#ffffff', borderColor: isSelected ? '#22A67A' : '#E4EAE8', transition: 'border-color 150ms, background-color 150ms' }}
                   >
                     <div
                       style={{ width: '30px', height: '30px', borderRadius: '50%', border: '2px solid', borderColor: isSelected ? '#22A67A' : '#D1D5DB', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
@@ -67,8 +67,8 @@ export default function NavigationPage() {
                       )}
                     </div>
                     <div>
-                      <p style={{ fontSize: '15px', fontWeight: 600, color: '#1A1A1A', lineHeight: 1.3 }}>{option.label}</p>
-                      <p style={{ fontSize: '12px', color: '#6B7280', marginTop: '2px' }}>{option.description}</p>
+                      <p style={{ fontSize: '15px', fontWeight: 500, color: '#1F2D37', lineHeight: 1.3 }}>{option.label}</p>
+                      <p style={{ fontSize: '14px', color: '#4A5B68', marginTop: '2px' }}>{option.description}</p>
                     </div>
                   </div>
                 </button>

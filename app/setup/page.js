@@ -339,28 +339,28 @@ export default function SetupPage() {
               {zones.map((zone, i) => (
                 <div key={zone.id} style={{ background: '#F6F8F7', border: '1px solid #E4EAE8', borderRadius: 10, padding: 14 }}>
                   <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                    <input type="text" value={zone.name} onChange={e => updateZone(i, 'name', e.target.value)} placeholder="Zone name" style={{ flex: 1, border: '1px solid #E4EAE8', borderRadius: 8, minHeight: 44, padding: '0 12px', fontSize: 16, color: '#1F2D37', background: '#FFFFFF', outline: 'none' }} />
+                    <input type="text" value={zone.name} onChange={e => updateZone(i, 'name', e.target.value)} placeholder="Zone name" style={{ flex: 1, border: '1px solid #E4EAE8', borderRadius: 8, minHeight: 48, padding: '0 12px', fontSize: 16, color: '#1F2D37', background: '#FFFFFF', outline: 'none' }} />
                     {zones.length > 1 && (
-                      <button type="button" onClick={() => removeZone(i)} style={{ minWidth: 44, minHeight: 44, border: '1px solid #E4EAE8', borderRadius: 8, background: '#FFFFFF', color: '#D94444', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>x</button>
+                      <button type="button" onClick={() => removeZone(i)} style={{ minWidth: 44, minHeight: 48, border: '1px solid #E4EAE8', borderRadius: 8, background: '#FFFFFF', color: '#D94444', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>x</button>
                     )}
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <div style={{ flex: 1 }}>
                       <p style={{ fontSize: 13, color: '#8CA3A0', margin: '0 0 4px' }}>From (km)</p>
-                      <input type="number" value={zone.min_km} onChange={e => updateZone(i, 'min_km', Number(e.target.value))} style={{ width: '100%', border: '1px solid #E4EAE8', borderRadius: 8, minHeight: 44, padding: '0 12px', fontSize: 16, color: '#1F2D37', background: '#FFFFFF', outline: 'none' }} />
+                      <input type="number" value={zone.min_km} onChange={e => updateZone(i, 'min_km', Number(e.target.value))} style={{ width: '100%', border: '1px solid #E4EAE8', borderRadius: 8, minHeight: 48, padding: '0 12px', fontSize: 16, color: '#1F2D37', background: '#FFFFFF', outline: 'none' }} />
                     </div>
                     <div style={{ flex: 1 }}>
                       <p style={{ fontSize: 13, color: '#8CA3A0', margin: '0 0 4px' }}>To (km)</p>
-                      <input type="number" value={zone.max_km ?? ''} onChange={e => updateZone(i, 'max_km', e.target.value === '' ? null : Number(e.target.value))} placeholder="No limit" style={{ width: '100%', border: '1px solid #E4EAE8', borderRadius: 8, minHeight: 44, padding: '0 12px', fontSize: 16, color: '#1F2D37', background: '#FFFFFF', outline: 'none' }} />
+                      <input type="number" value={zone.max_km ?? ''} onChange={e => updateZone(i, 'max_km', e.target.value === '' ? null : Number(e.target.value))} placeholder="No limit" style={{ width: '100%', border: '1px solid #E4EAE8', borderRadius: 8, minHeight: 48, padding: '0 12px', fontSize: 16, color: '#1F2D37', background: '#FFFFFF', outline: 'none' }} />
                     </div>
                     <div style={{ flex: 1 }}>
                       <p style={{ fontSize: 13, color: '#8CA3A0', margin: '0 0 4px' }}>Fee ($)</p>
-                      <input type="number" value={zone.fee} onChange={e => updateZone(i, 'fee', Number(e.target.value))} style={{ width: '100%', border: '1px solid #E4EAE8', borderRadius: 8, minHeight: 44, padding: '0 12px', fontSize: 16, color: '#1F2D37', background: '#FFFFFF', outline: 'none' }} />
+                      <input type="number" value={zone.fee} onChange={e => updateZone(i, 'fee', Number(e.target.value))} style={{ width: '100%', border: '1px solid #E4EAE8', borderRadius: 8, minHeight: 48, padding: '0 12px', fontSize: 16, color: '#1F2D37', background: '#FFFFFF', outline: 'none' }} />
                     </div>
                   </div>
                 </div>
               ))}
-              <button type="button" onClick={addZone} style={{ minHeight: 44, border: '1.5px dashed #E4EAE8', borderRadius: 10, background: 'transparent', color: '#8CA3A0', fontSize: 16, cursor: 'pointer' }}>
+              <button type="button" onClick={addZone} style={{ minHeight: 48, border: '1.5px dashed #E4EAE8', borderRadius: 10, background: 'transparent', color: '#8CA3A0', fontSize: 16, cursor: 'pointer' }}>
                 Add zone
               </button>
             </div>
@@ -417,7 +417,7 @@ export default function SetupPage() {
                           disabled={isSelected}
                           onClick={() => handleSelectSupplier(supplier)}
                           style={{
-                            minHeight: 44,
+                            minHeight: 48,
                             minWidth: 88,
                             borderRadius: 8,
                             border: 'none',
@@ -443,7 +443,7 @@ export default function SetupPage() {
                             value={selectedSupplierEmail}
                             onChange={e => setSelectedSupplierEmail(e.target.value)}
                             placeholder="orders@supplier.co.nz"
-                            style={{ width: '100%', border: '1px solid #C5E8D5', borderRadius: 8, minHeight: 44, padding: '0 12px', fontSize: 16, color: '#1F2D37', background: '#FFFFFF', outline: 'none', boxSizing: 'border-box' }}
+                            style={{ width: '100%', border: '1px solid #C5E8D5', borderRadius: 8, minHeight: 48, padding: '0 12px', fontSize: 16, color: '#1F2D37', background: '#FFFFFF', outline: 'none', boxSizing: 'border-box' }}
                           />
                         </div>
                       )}

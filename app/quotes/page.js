@@ -62,7 +62,7 @@ function StatusPill({ status }) {
   const isAwaiting = status === 'quoted' || status === 'awaiting'
   return (
     <span style={{
-      fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 6,
+      fontSize: 14, fontWeight: 500, padding: '3px 8px', borderRadius: 6,
       background: isAwaiting ? '#E8940D' : '#E4EAE8',
       color: isAwaiting ? '#FFFFFF' : '#4A5B68',
       letterSpacing: '0.02em', whiteSpace: 'nowrap', flexShrink: 0,
@@ -114,7 +114,7 @@ function QuoteCard({ job, hourlyRate, gstRate }) {
     >
       {/* Row 1: name + badge */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
-        <span style={{ fontSize: 16, fontWeight: 600, color: '#1F2D37', lineHeight: 1.3, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span style={{ fontSize: 16, fontWeight: 500, color: '#1F2D37', lineHeight: 1.3, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {job.customer_name || 'Unnamed customer'}
         </span>
         <StatusPill status={job.status} />
@@ -127,10 +127,10 @@ function QuoteCard({ job, hourlyRate, gstRate }) {
 
       {/* Row 3: time + price */}
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
-        <span style={{ fontSize: 13, color: agingTimeColor(job), lineHeight: 1 }}>
+        <span style={{ fontSize: 14, color: agingTimeColor(job), lineHeight: 1 }}>
           {timeContext(job)}
         </span>
-        <span style={{ fontSize: 16, fontWeight: 600, color: '#1F2D37', flexShrink: 0 }}>
+        <span style={{ fontSize: 16, fontWeight: 500, color: '#1F2D37', flexShrink: 0 }}>
           {formatCurrency(total)}
         </span>
       </div>
@@ -151,7 +151,7 @@ function QuoteCard({ job, hourlyRate, gstRate }) {
             gap: 8,
           }}
         >
-          <span style={{ fontSize: 12, fontWeight: 500, color: '#854F0B', flex: 1, minWidth: 0 }}>
+          <span style={{ fontSize: 14, fontWeight: 500, color: '#854F0B', flex: 1, minWidth: 0 }}>
             {nudgeText}
           </span>
           <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
@@ -160,7 +160,7 @@ function QuoteCard({ job, hourlyRate, gstRate }) {
                 href={`tel:${job.customer_phone}`}
                 onClick={(e) => e.stopPropagation()}
                 style={{
-                  fontSize: 12, fontWeight: 600, padding: '6px 10px', borderRadius: 5,
+                  fontSize: 14, fontWeight: 500, padding: '6px 10px', borderRadius: 6,
                   background: '#22A67A', color: '#FFFFFF', textDecoration: 'none',
                   border: '1.5px solid #22A67A', borderBottom: '3px solid #147A5A',
                   display: 'inline-flex', alignItems: 'center', minHeight: 30, lineHeight: 1,
@@ -173,7 +173,7 @@ function QuoteCard({ job, hourlyRate, gstRate }) {
               type="button"
               onClick={handleResend}
               style={{
-                fontSize: 12, fontWeight: 600, padding: '6px 10px', borderRadius: 5,
+                fontSize: 14, fontWeight: 500, padding: '6px 10px', borderRadius: 6,
                 background: '#FFFFFF', color: '#4A5B68',
                 border: '1.5px solid #E4EAE8', borderBottom: '3px solid #D0D8D4',
                 minHeight: 30, cursor: 'pointer', lineHeight: 1,
@@ -193,7 +193,7 @@ function QuoteCard({ job, hourlyRate, gstRate }) {
 function SectionHeader({ label }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-      <span style={{ fontSize: 12, fontWeight: 500, color: '#8CA3A0', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>
+      <span style={{ fontSize: 14, fontWeight: 500, color: '#8CA3A0', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>
         {label}
       </span>
       <div style={{ flex: 1, height: 1, background: '#E4EAE8' }} />
@@ -270,7 +270,7 @@ export default function QuotesPage() {
           gap: 16,
         }}>
           <div>
-            <p style={{ fontSize: 22, fontWeight: 600, color: '#FFFFFF', margin: 0, lineHeight: 1.2 }}>
+            <p style={{ fontSize: 22, fontWeight: 500, color: '#FFFFFF', margin: 0, lineHeight: 1.2 }}>
               {formatCurrency(pipelineTotal)}
             </p>
             <p style={{ fontSize: 13, color: '#8CA3A0', margin: '3px 0 0' }}>in open quotes</p>
@@ -291,7 +291,7 @@ export default function QuotesPage() {
                 onClick={() => setFilter(pill.key)}
                 style={{
                   flexShrink: 0,
-                  minHeight: 40,
+                  minHeight: 48,
                   padding: '0 16px',
                   borderRadius: 20,
                   border: `1.5px solid ${active ? '#22A67A' : '#E4EAE8'}`,
@@ -304,7 +304,7 @@ export default function QuotesPage() {
                   transition: 'background 150ms, border-color 150ms, color 150ms',
                 }}
               >
-                {pill.label} <span style={{ fontWeight: 700 }}>{pill.count}</span>
+                {pill.label} <span style={{ fontWeight: 500 }}>{pill.count}</span>
               </button>
             )
           })}
@@ -363,7 +363,7 @@ export default function QuotesPage() {
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
-                    <span style={{ fontSize: 16, fontWeight: 600, color: '#4A5B68', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span style={{ fontSize: 16, fontWeight: 500, color: '#4A5B68', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {job.customer_name || 'Unnamed customer'}
                     </span>
                   </div>

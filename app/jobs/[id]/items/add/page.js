@@ -850,7 +850,7 @@ export default function AddItemPage() {
                             type="button"
                             onClick={() => togglePart(part)}
                             style={{
-                              minHeight: 40, padding: '0 16px', fontSize: 14, fontWeight: 500,
+                              minHeight: 48, padding: '0 16px', fontSize: 14, fontWeight: 500,
                               borderRadius: 8, border: `1.5px solid ${isAdded ? '#22A67A' : '#22A67A'}`,
                               background: isAdded ? '#22A67A' : '#FFFFFF',
                               color: isAdded ? '#FFFFFF' : '#22A67A',
@@ -887,6 +887,7 @@ export default function AddItemPage() {
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder="Search for a different part"
+                      aria-label="Search parts"
                       className="w-full bg-white border border-aq-border rounded-aq-md min-h-tap px-4 text-body text-aq-ink placeholder:text-aq-subtle focus:outline-none focus:border-aq-green transition-colors"
                     />
                     <div className="flex gap-aq-sm overflow-x-auto -mx-aq-lg px-aq-lg pb-1">
@@ -930,7 +931,7 @@ export default function AddItemPage() {
                                 type="button"
                                 onClick={() => togglePart(part)}
                                 style={{
-                                  minHeight: 40, padding: '0 16px', fontSize: 14, fontWeight: 500,
+                                  minHeight: 48, padding: '0 16px', fontSize: 14, fontWeight: 500,
                                   borderRadius: 8, border: '1.5px solid #22A67A',
                                   background: isAdded ? '#22A67A' : '#FFFFFF',
                                   color: isAdded ? '#FFFFFF' : '#22A67A',

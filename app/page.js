@@ -126,10 +126,10 @@ function SmartPromptCard({ prompt }) {
 
     return (
       <div style={{ backgroundColor: '#1F2D37', borderRadius: 12, padding: '16px 16px 20px', marginBottom: 16 }}>
-        <p style={{ fontSize: 11, fontWeight: 500, color: '#8CA3A0', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+        <p style={{ fontSize: 14, fontWeight: 500, color: '#8CA3A0', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
           Next job
         </p>
-        <p style={{ fontSize: 18, fontWeight: 600, color: '#FFFFFF', margin: '0 0 2px', lineHeight: 1.3 }}>
+        <p style={{ fontSize: 18, fontWeight: 500, color: '#FFFFFF', margin: '0 0 2px', lineHeight: 1.3 }}>
           {job.customer_name}
         </p>
         {summary && (
@@ -168,10 +168,10 @@ function SmartPromptCard({ prompt }) {
     const { job } = prompt
     return (
       <div style={{ backgroundColor: '#E6F7F0', border: '1px solid #C5E8D5', borderRadius: 12, padding: '16px 16px 20px', marginBottom: 16 }}>
-        <p style={{ fontSize: 11, fontWeight: 500, color: '#22A67A', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+        <p style={{ fontSize: 14, fontWeight: 500, color: '#22A67A', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
           Quote accepted
         </p>
-        <p style={{ fontSize: 18, fontWeight: 600, color: '#1F2D37', margin: '0 0 16px', lineHeight: 1.3 }}>
+        <p style={{ fontSize: 18, fontWeight: 500, color: '#1F2D37', margin: '0 0 16px', lineHeight: 1.3 }}>
           {job.customer_name}
         </p>
         <div style={{ display: 'flex', gap: 10 }}>
@@ -196,10 +196,10 @@ function SmartPromptCard({ prompt }) {
   if (prompt.type === 'uninvoiced') {
     return (
       <div style={{ backgroundColor: '#FEF7E6', border: '1px solid #F5E2B0', borderRadius: 12, padding: '16px 16px 20px', marginBottom: 16 }}>
-        <p style={{ fontSize: 11, fontWeight: 500, color: '#854F0B', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+        <p style={{ fontSize: 14, fontWeight: 500, color: '#854F0B', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
           Ready to invoice
         </p>
-        <p style={{ fontSize: 18, fontWeight: 600, color: '#1F2D37', margin: '0 0 16px', lineHeight: 1.3 }}>
+        <p style={{ fontSize: 18, fontWeight: 500, color: '#1F2D37', margin: '0 0 16px', lineHeight: 1.3 }}>
           {prompt.count} {prompt.count === 1 ? 'job' : 'jobs'} ready to invoice
         </p>
         <Link
@@ -234,8 +234,8 @@ function DayProgressBar({ jobs }) {
           </span>
           <span style={{ fontSize: 14, color: '#8CA3A0' }}>{pct}%</span>
         </div>
-        <div style={{ height: 6, backgroundColor: '#E4EAE8', borderRadius: 3, overflow: 'hidden' }}>
-          <div style={{ height: '100%', width: `${pct}%`, backgroundColor: '#22A67A', borderRadius: 3 }} />
+        <div style={{ height: 6, backgroundColor: '#E4EAE8', borderRadius: 4, overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${pct}%`, backgroundColor: '#22A67A', borderRadius: 4 }} />
         </div>
       </div>
     </Link>
@@ -250,7 +250,7 @@ function StatCard({ label, count, sub, href, countColor }) {
       <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E4EAE8', borderRadius: 12, padding: '14px 16px', minHeight: 96, display: 'flex', flexDirection: 'column', gap: 4 }}>
         <p style={{ fontSize: 14, color: '#4A5B68', margin: 0, lineHeight: 1.3 }}>{label}</p>
         <p style={{ fontSize: 34, fontWeight: 500, color: countColor, margin: 0, lineHeight: 1 }}>{count}</p>
-        <p style={{ fontSize: 13, color: '#8CA3A0', margin: 0 }}>{sub}</p>
+        <p style={{ fontSize: 14, color: '#8CA3A0', margin: 0 }}>{sub}</p>
       </div>
     </Link>
   )
@@ -274,7 +274,7 @@ function ActivityRow({ job }) {
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
         <StatusBadge status={job.status} />
-        <p style={{ fontSize: 13, color: '#8CA3A0', margin: 0 }}>
+        <p style={{ fontSize: 14, color: '#8CA3A0', margin: 0 }}>
           {timeAgo(job.updated_at || job.created_at)}
         </p>
       </div>
@@ -315,17 +315,17 @@ function PricingPromptCard({ settings }) {
 
   return (
     <div style={{ background: '#FEF7E6', border: '1px solid #F5E2B0', borderRadius: 12, padding: 16, marginBottom: 16 }}>
-      <p style={{ fontSize: 16, fontWeight: 600, color: '#1F2D37', margin: '0 0 4px' }}>Set your standard prices</p>
-      <p style={{ fontSize: 13, color: '#4A5B68', margin: '0 0 4px' }}>
+      <p style={{ fontSize: 16, fontWeight: 500, color: '#1F2D37', margin: '0 0 4px' }}>Set your standard prices</p>
+      <p style={{ fontSize: 14, color: '#4A5B68', margin: '0 0 4px' }}>
         Price your 5 most common repairs so quotes auto-fill instantly
       </p>
-      <p style={{ fontSize: 12, color: '#854F0B', margin: '0 0 14px' }}>Takes about 2 minutes</p>
+      <p style={{ fontSize: 14, color: '#854F0B', margin: '0 0 14px' }}>Takes about 2 minutes</p>
       <div style={{ display: 'flex', gap: 10 }}>
         <Link
           href="/quick-pricing"
           style={{
             flex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            minHeight: 44, borderRadius: 8, textDecoration: 'none',
+            minHeight: 48, borderRadius: 8, textDecoration: 'none',
             background: '#F0B542', borderBottom: '2px solid #D9A03A', border: 'none',
             color: '#1F2D37', fontSize: 15, fontWeight: 500,
           }}
@@ -336,7 +336,7 @@ function PricingPromptCard({ settings }) {
           type="button"
           onClick={handleLater}
           style={{
-            flex: 1, minHeight: 44, borderRadius: 8,
+            flex: 1, minHeight: 48, borderRadius: 8,
             background: '#FFFFFF', border: '1px solid #E4EAE8',
             color: '#4A5B68', fontSize: 15, fontWeight: 500, cursor: 'pointer',
           }}
@@ -348,7 +348,7 @@ function PricingPromptCard({ settings }) {
         <button
           type="button"
           onClick={handleDontShow}
-          style={{ marginTop: 10, background: 'none', border: 'none', color: '#8CA3A0', fontSize: 13, cursor: 'pointer', padding: '4px 0', display: 'block' }}
+          style={{ marginTop: 10, background: 'none', border: 'none', color: '#8CA3A0', fontSize: 14, cursor: 'pointer', padding: '4px 0', display: 'block' }}
         >
           Don't show again
         </button>
@@ -393,7 +393,7 @@ function OnboardingChecklist({ settings, jobs, onComplete }) {
 
   return (
     <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E4EAE8', borderRadius: 12, padding: '16px 16px 18px', marginBottom: 16 }}>
-      <p style={{ fontSize: 11, fontWeight: 500, color: '#4A5B68', margin: '0 0 12px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+      <p style={{ fontSize: 14, fontWeight: 500, color: '#4A5B68', margin: '0 0 12px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
         Getting started
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -456,7 +456,7 @@ export default function HomePage() {
             {greeting && (
               <p style={{ fontSize: 16, color: '#4A5B68', margin: '0 0 2px' }}>{greeting}</p>
             )}
-            <h1 style={{ fontSize: 22, fontWeight: 600, color: '#1F2D37', margin: 0, lineHeight: 1.2 }}>
+            <h1 style={{ fontSize: 22, fontWeight: 500, color: '#1F2D37', margin: 0, lineHeight: 1.2 }}>
               {businessName || 'Jotey'}
             </h1>
           </div>
@@ -484,7 +484,7 @@ export default function HomePage() {
         {/* New job — full width, always visible, never moves */}
         <Link
           href="/jobs/new"
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', minHeight: 56, backgroundColor: '#22A67A', color: '#FFFFFF', borderRadius: 10, fontSize: 16, fontWeight: 600, textDecoration: 'none', marginBottom: 16, boxSizing: 'border-box' }}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', minHeight: 56, backgroundColor: '#22A67A', color: '#FFFFFF', borderRadius: 10, fontSize: 16, fontWeight: 500, textDecoration: 'none', marginBottom: 16, boxSizing: 'border-box' }}
         >
           New job
         </Link>

@@ -81,7 +81,7 @@ function StatusTracker({ status }) {
                 <div className={`flex-1 h-0.5 ${i < stepIdx ? 'bg-aq-green' : 'bg-aq-border'}`} />
               )}
             </div>
-            <p className={`text-[11px] mt-1 text-center leading-tight ${
+            <p className={`text-caption mt-1 text-center leading-tight ${
               i <= stepIdx ? 'text-aq-green font-medium' : 'text-aq-muted'
             }`}>
               {step.label}

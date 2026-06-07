@@ -50,7 +50,7 @@ function PhotoGallery({ photos }) {
         <div key={photo.id || idx} style={{ borderRadius: 10, overflow: 'hidden', background: C.surface }}>
           <img
             src={photo.url}
-            alt={photo.caption || ''}
+            alt={photo.caption || 'Job photo'}
             style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }}
             loading="lazy"
           />

@@ -116,7 +116,7 @@ export default function InvoicePage() {
             <div className="bg-white border border-aq-border rounded-aq-xl overflow-hidden">
               {rooms.map(([roomName, roomItems], ri) => (
                 <div key={roomName}>
-                  {ri > 0 && <div style={{ borderTop: '1px solid #F0F2F1' }} />}
+                  {ri > 0 && <div style={{ borderTop: '1px solid #E4EAE8' }} />}
                   <div style={{ padding: '12px 16px 4px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <div style={{ width: 4, height: 14, borderRadius: 2, background: getRoomColour(roomName), flexShrink: 0 }} />

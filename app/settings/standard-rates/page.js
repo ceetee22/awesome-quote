@@ -6,6 +6,7 @@ import { REPAIR_TEMPLATE_FAULTS, TOTAL_TEMPLATE_COUNT } from '@/lib/constants'
 import BackButton from '@/components/BackButton'
 import Button from '@/components/Button'
 import ConfirmModal from '@/components/ConfirmModal'
+import Stepper from '@/components/Stepper'
 
 // ─── Joinery type icons (solid-fill) ─────────────────────────────────────────
 
@@ -225,7 +226,7 @@ function EditPanel({ type, fault, isCustom, customName, template, catalogueParts
 
         {/* Standard price */}
         <div style={{ marginBottom: 28 }}>
-          <p style={{ fontSize: 14, fontWeight: 600, color: '#1F2D37', margin: '0 0 8px' }}>Standard price</p>
+          <label htmlFor="standard-price" style={{ display: 'block', fontSize: 14, fontWeight: 500, color: '#1F2D37', margin: '0 0 8px' }}>Standard price</label>
           <div style={{ display: 'flex', alignItems: 'stretch', border: '2px solid #22A67A', borderRadius: 8, background: '#fff', overflow: 'hidden' }}>
             <span style={{
               padding: '0 16px', fontSize: 22, color: '#4A5B68', fontWeight: 500,
@@ -233,6 +234,7 @@ function EditPanel({ type, fault, isCustom, customName, template, catalogueParts
               display: 'flex', alignItems: 'center', flexShrink: 0,
             }}>$</span>
             <input
+              id="standard-price"
               type="number"
               value={price}
               onChange={(e) => setPrice(e.target.value)}
@@ -245,16 +247,16 @@ function EditPanel({ type, fault, isCustom, customName, template, catalogueParts
               }}
             />
           </div>
-          <p style={{ fontSize: 13, color: '#8CA3A0', margin: '6px 0 0' }}>GST inclusive. This is what the customer pays.</p>
+          <p style={{ fontSize: 14, color: '#8CA3A0', margin: '6px 0 0' }}>GST inclusive. This is what the customer pays.</p>
         </div>
 
         {/* Default parts (optional) */}
         <div>
-          <p style={{ fontSize: 14, fontWeight: 600, color: '#1F2D37', margin: '0 0 2px' }}>
+          <p style={{ fontSize: 14, fontWeight: 500, color: '#1F2D37', margin: '0 0 2px' }}>
             Default parts{' '}
-            <span style={{ fontWeight: 400, color: '#8CA3A0', fontSize: 13 }}>(optional, for ordering)</span>
+            <span style={{ fontWeight: 400, color: '#8CA3A0', fontSize: 14 }}>(optional, for ordering)</span>
           </p>
-          <p style={{ fontSize: 13, color: '#8CA3A0', fontStyle: 'italic', margin: '0 0 12px', lineHeight: 1.5 }}>
+          <p style={{ fontSize: 14, color: '#8CA3A0', fontStyle: 'italic', margin: '0 0 12px', lineHeight: 1.5 }}>
             These auto-add to purchase orders. They don't change the price above.
           </p>
 
@@ -272,13 +274,19 @@ function EditPanel({ type, fault, isCustom, customName, template, catalogueParts
                   <p style={{ flex: 1, fontSize: 14, fontWeight: 500, color: '#1F2D37', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {p.name}
                   </p>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                    <button onClick={() => updateQty(p.part_id, -1)} style={stepBtnStyle} aria-label="Decrease quantity">−</button>
-                    <span style={{ fontSize: 14, fontWeight: 500, color: '#1F2D37', minWidth: 24, textAlign: 'center' }}>{p.qty}</span>
-                    <button onClick={() => updateQty(p.part_id, 1)} style={stepBtnStyle} aria-label="Increase quantity">+</button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                    <Stepper
+                      value={p.qty}
+                      onChange={(v) => {
+                        if (v < 1) removePart(p.part_id)
+                        else setSelectedParts((prev) => prev.map((sp) => sp.part_id === p.part_id ? { ...sp, qty: v } : sp))
+                      }}
+                      min={1}
+                      step={1}
+                    />
                     <button
                       onClick={() => removePart(p.part_id)}
-                      style={{ ...stepBtnStyle, marginLeft: 4, color: '#8CA3A0' }}
+                      style={{ width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #E4EAE8', borderRadius: 6, background: 'white', cursor: 'pointer', color: '#8CA3A0', fontSize: 18 }}
                       aria-label="Remove part"
                     >×</button>
                   </div>
@@ -319,7 +327,7 @@ function EditPanel({ type, fault, isCustom, customName, template, catalogueParts
                     }}
                   >
                     <span style={{ fontSize: 15, color: '#1F2D37', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
-                    <span style={{ fontSize: 13, color: '#8CA3A0', flexShrink: 0 }}>${(p.sell_price || 0).toFixed(2)}</span>
+                    <span style={{ fontSize: 14, color: '#8CA3A0', flexShrink: 0 }}>${(p.sell_price || 0).toFixed(2)}</span>
                   </button>
                 ))}
               </div>
@@ -336,7 +344,7 @@ function EditPanel({ type, fault, isCustom, customName, template, catalogueParts
             <button
               onClick={() => setDeleteOpen(true)}
               style={{
-                minHeight: 44, border: 'none', background: 'none',
+                minHeight: 48, border: 'none', background: 'none',
                 color: '#D94444', fontSize: 15, cursor: 'pointer', padding: '8px 0',
               }}
             >
@@ -491,7 +499,7 @@ export default function StandardRatesPage() {
                   <span className="text-aq-green shrink-0">
                     <JoineryIcon type={group.type} size={18} />
                   </span>
-                  <p className="text-caption font-semibold text-aq-muted uppercase tracking-wide">
+                  <p className="text-caption font-medium text-aq-muted uppercase tracking-wide">
                     {group.label}
                   </p>
                 </div>
@@ -512,7 +520,7 @@ export default function StandardRatesPage() {
                         {fault}
                       </span>
                       {tmpl?.price != null && (
-                        <span style={{ fontSize: 12, color: '#22A67A', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                        <span style={{ fontSize: 14, color: '#22A67A', flexShrink: 0, whiteSpace: 'nowrap' }}>
                           ${Number(tmpl.price).toFixed(2)} incl GST
                         </span>
                       )}
@@ -536,7 +544,7 @@ export default function StandardRatesPage() {
                         {tmpl.custom_name}
                       </span>
                       {tmpl.price != null && (
-                        <span style={{ fontSize: 12, color: '#22A67A', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                        <span style={{ fontSize: 14, color: '#22A67A', flexShrink: 0, whiteSpace: 'nowrap' }}>
                           ${Number(tmpl.price).toFixed(2)} incl GST
                         </span>
                       )}

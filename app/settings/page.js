@@ -73,7 +73,7 @@ function IconRuler() {
 
 function IconBriefcase() {
   return (
-    <IconBox bg="#F0F2F1" stroke="#4A5B68">
+    <IconBox bg="#F6F8F7" stroke="#4A5B68">
       <rect x="2" y="7" width="20" height="14" rx="2" />
       <path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2" />
       <line x1="12" y1="12" x2="12.01" y2="12" strokeWidth="2.5" />
@@ -83,7 +83,7 @@ function IconBriefcase() {
 
 function IconReceipt() {
   return (
-    <IconBox bg="#F0F2F1" stroke="#4A5B68">
+    <IconBox bg="#F6F8F7" stroke="#4A5B68">
       <path d="M4 2v20l3-2 3 2 3-2 3 2 3-2V2l-3 2-3-2-3 2-3-2-3 2z" />
       <line x1="9" y1="9" x2="15" y2="9" />
       <line x1="9" y1="13" x2="15" y2="13" />
@@ -101,7 +101,7 @@ function IconCloud() {
 
 function IconCompass() {
   return (
-    <IconBox bg="#F0F2F1" stroke="#4A5B68">
+    <IconBox bg="#F6F8F7" stroke="#4A5B68">
       <circle cx="12" cy="12" r="10" />
       <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" fill="none" />
     </IconBox>
@@ -110,7 +110,7 @@ function IconCompass() {
 
 function IconLock() {
   return (
-    <IconBox bg="#F0F2F1" stroke="#4A5B68">
+    <IconBox bg="#F6F8F7" stroke="#4A5B68">
       <rect x="3" y="11" width="18" height="11" rx="2" />
       <path d="M7 11V7a5 5 0 0110 0v4" />
     </IconBox>
@@ -119,7 +119,7 @@ function IconLock() {
 
 function IconChat() {
   return (
-    <IconBox bg="#F0F2F1" stroke="#4A5B68">
+    <IconBox bg="#F6F8F7" stroke="#4A5B68">
       <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
     </IconBox>
   )
@@ -127,7 +127,7 @@ function IconChat() {
 
 function IconDownload() {
   return (
-    <IconBox bg="#F0F2F1" stroke="#4A5B68">
+    <IconBox bg="#F6F8F7" stroke="#4A5B68">
       <path d="M12 2v13M7 10l5 5 5-5" />
       <path d="M20 17v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2" />
     </IconBox>
@@ -148,22 +148,22 @@ function MenuRow({ icon, name, badge, description, value, href, onClick, isFirst
   const inner = (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px',
-      minHeight: 64, borderTop: isFirst ? 'none' : '1px solid #F0F2F1',
+      minHeight: 64, borderTop: isFirst ? 'none' : '1px solid #E4EAE8',
     }}>
       {icon}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 15, fontWeight: 600, color: '#1F2D37' }}>{name}</span>
+          <span style={{ fontSize: 15, fontWeight: 500, color: '#1F2D37' }}>{name}</span>
           {badge && (
-            <span style={{ fontSize: 10, fontWeight: 600, background: '#E6F7F0', color: '#147A5A', borderRadius: 4, padding: '2px 6px', lineHeight: 1.4 }}>
+            <span style={{ fontSize: 14, fontWeight: 500, background: '#E6F7F0', color: '#147A5A', borderRadius: 4, padding: '2px 6px', lineHeight: 1.4 }}>
               {badge}
             </span>
           )}
         </div>
-        {description && <p style={{ fontSize: 12, color: '#8CA3A0', margin: 0, marginTop: 2 }}>{description}</p>}
+        {description && <p style={{ fontSize: 14, color: '#8CA3A0', margin: 0, marginTop: 2 }}>{description}</p>}
       </div>
       {value && (
-        <span style={{ fontSize: 14, fontWeight: 600, color: '#22A67A', flexShrink: 0, maxWidth: 130, textAlign: 'right' }}>
+        <span style={{ fontSize: 14, fontWeight: 500, color: '#22A67A', flexShrink: 0, maxWidth: 130, textAlign: 'right' }}>
           {value}
         </span>
       )}
@@ -192,7 +192,7 @@ function MenuCard({ items }) {
 
 function GroupLabel({ label }) {
   return (
-    <p style={{ fontSize: 12, fontWeight: 600, color: '#8CA3A0', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 6px 4px' }}>
+    <p style={{ fontSize: 14, fontWeight: 500, color: '#8CA3A0', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 6px 4px' }}>
       {label}
     </p>
   )
@@ -287,13 +287,13 @@ export default function SettingsPage() {
                     <IconPriceTag />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 15, fontWeight: 600, color: '#1F2D37' }}>Standard rates</span>
-                        <span style={{ fontSize: 10, fontWeight: 600, background: '#E6F7F0', color: '#147A5A', borderRadius: 4, padding: '2px 6px', lineHeight: 1.4 }}>Speed quoting</span>
+                        <span style={{ fontSize: 15, fontWeight: 500, color: '#1F2D37' }}>Standard rates</span>
+                        <span style={{ fontSize: 14, fontWeight: 500, background: '#E6F7F0', color: '#147A5A', borderRadius: 4, padding: '2px 6px', lineHeight: 1.4 }}>Speed quoting</span>
                       </div>
-                      <p style={{ fontSize: 12, color: '#8CA3A0', margin: '2px 0 0' }}>Auto-fill parts and pricing per repair type</p>
+                      <p style={{ fontSize: 14, color: '#8CA3A0', margin: '2px 0 0' }}>Auto-fill parts and pricing per repair type</p>
                     </div>
                     {templatesCount !== null && (
-                      <span style={{ fontSize: 14, fontWeight: 600, color: '#22A67A', flexShrink: 0 }}>{templatesCount} saved</span>
+                      <span style={{ fontSize: 14, fontWeight: 500, color: '#22A67A', flexShrink: 0 }}>{templatesCount} saved</span>
                     )}
                     <Chevron />
                   </div>
