@@ -46,7 +46,7 @@ export default function Providers({ children }) {
       <JobProvider>
         <Guards />
         {children}
-        {!pathname?.startsWith('/planner') && <BottomNav />}
+        {!pathname?.startsWith('/planner') && !pathname?.startsWith('/quick-pricing') && <BottomNav />}
         <FeedbackButton />
       </JobProvider>
     </SettingsProvider>
