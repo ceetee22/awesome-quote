@@ -47,7 +47,7 @@ export default function CompletePage() {
   return (
     <>
       <div className="min-h-dvh bg-aq-surface">
-        <div className="max-w-[480px] mx-auto px-aq-lg pb-8">
+        <div className="max-w-[480px] mx-auto px-aq-lg pb-[80px]">
 
           <div className="flex items-center gap-aq-sm py-aq-xl">
             <BackButton href={`/jobs/${params.id}`} label="Job" />

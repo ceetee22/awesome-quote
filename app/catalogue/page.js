@@ -655,7 +655,7 @@ function CatalogueContent() {
       )}
 
       <div className="min-h-dvh bg-aq-surface">
-        <div className="max-w-[480px] mx-auto px-aq-lg pb-32">
+        <div className="max-w-[480px] mx-auto px-aq-lg pb-40">
 
           {/* Header */}
           <div className="flex items-center gap-aq-sm py-aq-xl">
@@ -733,7 +733,7 @@ function CatalogueContent() {
       </div>
 
       {/* Fixed bottom "Add new part" button */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-aq-border px-aq-lg py-aq-md">
+      <div className="fixed bottom-[56px] left-0 right-0 bg-white border-t border-aq-border px-aq-lg py-aq-md">
         <div className="max-w-[480px] mx-auto">
           <Button variant="primary" fullWidth onClick={() => setAddFormOpen(true)}>
             Add new part

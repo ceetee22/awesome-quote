@@ -480,7 +480,7 @@ export default function StandardRatesPage() {
         </div>
 
         {/* Joinery groups */}
-        <div className="pb-8">
+        <div className="pb-[80px]">
           {REPAIR_TEMPLATE_FAULTS.map((group) => {
             const customTemplates = getCustomTemplates(group.type)
             return (
