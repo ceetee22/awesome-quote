@@ -177,6 +177,7 @@ export default function AddItemPage() {
 
   // Inline catalogue search
   const [allParts, setAllParts] = useState([])
+  const [loadingAllParts, setLoadingAllParts] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchCategory, setSearchCategory] = useState(null)
   const [showSearch, setShowSearch] = useState(false)
@@ -202,12 +203,16 @@ export default function AddItemPage() {
     // default: step='room'
   }, [])
 
-  // Load full catalogue when parts step is reached
+  // Load full catalogue only when operator opens Browse (lazy, not on mount)
   useEffect(() => {
-    if (step === 'parts') {
-      getParts().then(setAllParts)
+    if (showSearch && allParts.length === 0 && !loadingAllParts) {
+      setLoadingAllParts(true)
+      getParts().then((parts) => {
+        setAllParts(parts)
+        setLoadingAllParts(false)
+      })
     }
-  }, [step])
+  }, [showSearch])
 
   // ── Navigation ────────────────────────────────────────────────────────────
 
@@ -268,34 +273,30 @@ export default function AddItemPage() {
     setLoadingParts(true)
     setStep('parts')
 
-    const [suggestions, tmplRes] = await Promise.all([
-      getPartsByFitsAndFixes(joineryType, option.value),
-      fetch(`/api/repair-templates/match?joinery_type=${joineryType}&fault=${encodeURIComponent(option.label)}`)
-        .then((r) => r.ok ? r.json() : null)
-        .catch(() => null),
-    ])
+    // Template match first — fast single-row lookup
+    const tmplRes = await fetch(
+      `/api/repair-templates/match?joinery_type=${joineryType}&fault=${encodeURIComponent(option.label)}`
+    ).then((r) => r.ok ? r.json() : null).catch(() => null)
 
     const initial = {}
-    suggestions.forEach((p) => {
-      initial[p.id] = { part: p, qty: p.default_qty || 1, selected: false }
-    })
 
     if (tmplRes && tmplRes.id) {
+      // Template found — use its parts, skip catalogue query entirely
       setTemplateInfo(tmplRes)
       ;(tmplRes.parts || []).forEach((tp) => {
-        if (initial[tp.part_id]) {
-          // Already in suggestions — mark as selected with template qty
-          initial[tp.part_id] = { ...initial[tp.part_id], qty: tp.qty, selected: true }
-        } else {
-          // Not in suggestions — add with minimal part object
-          initial[tp.part_id] = {
-            part: { id: tp.part_id, name: tp.name, sell_price: tp.sell_price || 0, sku: '', unit: 'each', active: true },
-            qty: tp.qty,
-            selected: true,
-          }
+        initial[tp.part_id] = {
+          part: { id: tp.part_id, name: tp.name, sell_price: tp.sell_price || 0, sku: '', unit: 'each', active: true },
+          qty: tp.qty,
+          selected: true,
         }
       })
       // Labour is always opt-in; never pre-fill from template
+    } else {
+      // No template — fetch up to 5 catalogue suggestions
+      const suggestions = await getPartsByFitsAndFixes(joineryType, option.value)
+      suggestions.forEach((p) => {
+        initial[p.id] = { part: p, qty: p.default_qty || 1, selected: false }
+      })
     }
 
     setPartState(initial)
@@ -911,7 +912,9 @@ export default function AddItemPage() {
                         </button>
                       ))}
                     </div>
-                    {searchResults.length === 0 && (searchQuery.trim() || searchCategory) ? (
+                    {loadingAllParts ? (
+                      <p style={{ fontSize: 14, color: '#8CA3A0', textAlign: 'center', padding: '12px 0', margin: 0 }}>Loading catalogue...</p>
+                    ) : searchResults.length === 0 && (searchQuery.trim() || searchCategory) ? (
                       <p className="text-secondary text-aq-muted text-center py-aq-md">No parts found.</p>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
