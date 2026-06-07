@@ -13,16 +13,6 @@ export default function AuthBrand() {
         marginBottom: 28,
       }}
     >
-      {/* Logo mark */}
-      <img
-        src="/logo.svg"
-        alt=""
-        aria-hidden="true"
-        width={64}
-        height={64}
-        style={{ display: 'block', marginBottom: 14 }}
-      />
-
       {/* Wordmark — inline SVG with white text so it reads on green */}
       <svg
         viewBox="0 0 2895.5 1528.22"
