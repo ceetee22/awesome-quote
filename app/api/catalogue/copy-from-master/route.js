@@ -100,14 +100,13 @@ export async function POST(request) {
       business_id: biz.id,
       sku: p.sku || '',
       name: p.name,
-      category: p.category,
-      rrp: p.rrp,
-      sell_price: p.rrp,   // RRP as starting sell price; operator adjusts later
-      cost_price: null,    // operator fills in their negotiated rate
+      category: p.category || 'other',
+      sell_price: p.rrp || 0,  // RRP as starting sell price; operator adjusts later
+      cost_price: 0,            // operator fills in their negotiated rate
       fits: p.fits || [],
       fixes: p.fixes || [],
       default_qty: p.default_qty || 1,
-      photo_url: p.photo_url,
+      photo_url: p.photo_url || null,
       unit: p.unit || 'each',
       supplier: masterSupplier.name,
       supplier_code: '',

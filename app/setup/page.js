@@ -187,10 +187,11 @@ export default function SetupPage() {
       } else if (stepNum === 4) {
         const supabase = createSupabaseBrowserClient()
         if (supabase) {
-          // Delete this business's existing zones, then insert new ones
+          // Delete all zones for this business, then upsert — idempotent if delete fails
           await supabase.from('callout_zones').delete().neq('id', '__never__')
-          const rows = zones.map((z, i) => ({ ...z, sort_order: i }))
-          await supabase.from('callout_zones').insert(rows)
+          const rows = zones.map(({ business_id: _biz, ...z }, i) => ({ ...z, sort_order: i }))
+          const { error: upsertErr } = await supabase.from('callout_zones').upsert(rows, { onConflict: 'id' })
+          if (upsertErr) console.error('callout_zones upsert failed:', upsertErr.message)
         }
         updateSettings({ callout_zones: zones })
       } else if (stepNum === 6) {
