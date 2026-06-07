@@ -76,9 +76,7 @@ export default function QuotePage() {
   const [labourHours, setLabourHours] = useState(() => {
     const saved = currentJob?.labour_hours
     if (saved != null) return saved
-    if (currentJob?.estimated_duration > 0) return currentJob.estimated_duration
-    const hasTemplate = (currentJob?.items || []).some((i) => i.template_id)
-    return hasTemplate ? 0 : 1
+    return 0
   })
 
   const initFee = currentJob?.callout_fee ?? zones[0]?.fee ?? 0

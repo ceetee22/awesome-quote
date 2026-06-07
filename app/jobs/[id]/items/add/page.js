@@ -163,7 +163,7 @@ export default function AddItemPage() {
   const [templateInfo, setTemplateInfo] = useState(null)
 
   // Labour + callout state (set in parts step, saved to job on proceed)
-  const [labourHours, setLabourHours] = useState(() => currentJob?.labour_hours || 1)
+  const [labourHours, setLabourHours] = useState(0)
   const [calloutFee, setCalloutFee] = useState(() => {
     if (currentJob?.callout_fee != null) return currentJob.callout_fee
     return zones[0]?.fee ?? 50
@@ -295,9 +295,7 @@ export default function AddItemPage() {
           }
         }
       })
-      if (tmplRes.labour_minutes > 0) {
-        setLabourHours(tmplRes.labour_minutes / 60)
-      }
+      // Labour is always opt-in; never pre-fill from template
     }
 
     setPartState(initial)
@@ -954,7 +952,13 @@ export default function AddItemPage() {
                       <p style={{ fontSize: 16, fontWeight: 500, color: '#1F2D37', margin: 0 }}>Labour</p>
                       <p style={{ fontSize: 13, color: '#8CA3A0', margin: '2px 0 0' }}>{formatCurrency(hourlyRate)}/hr</p>
                     </div>
-                    <Stepper value={labourHours} onChange={setLabourHours} min={0.5} step={0.5} />
+                    <Stepper
+                      value={labourHours}
+                      onChange={setLabourHours}
+                      min={0}
+                      step={0.5}
+                      formatValue={(v) => v === 0 ? 'No labour' : `${v} hr`}
+                    />
                   </div>
                 </div>
 
