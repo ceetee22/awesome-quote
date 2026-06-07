@@ -68,7 +68,7 @@ export default function SetupPage() {
   const [selectedSupplierIds, setSelectedSupplierIds] = useState(new Set())
   const [selectedSupplierEmail, setSelectedSupplierEmail] = useState('')
   const [copiedCounts, setCopiedCounts] = useState({})
-  const [copyingId, setCopyingId] = useState(null)
+  const [copyStatus, setCopyStatus] = useState({})
 
   useEffect(() => {
     if (!settingsLoaded) return
@@ -108,27 +108,25 @@ export default function SetupPage() {
       })
   }, [step])
 
-  async function handleSelectSupplier(supplier) {
-    if (selectedSupplierIds.has(supplier.id) || copyingId) return
-    setCopyingId(supplier.id)
-    try {
-      const res = await fetch('/api/catalogue/copy-from-master', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ supplier_id: supplier.id }),
-      })
+  function handleSelectSupplier(supplier) {
+    if (selectedSupplierIds.has(supplier.id)) return
+    setSelectedSupplierIds((prev) => new Set([...prev, supplier.id]))
+    setCopyStatus((prev) => ({ ...prev, [supplier.id]: 'copying' }))
+    fetch('/api/catalogue/copy-from-master', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ supplier_id: supplier.id }),
+    }).then(async (res) => {
       const data = await res.json()
       if (res.ok) {
-        setSelectedSupplierIds((prev) => new Set([...prev, supplier.id]))
         setCopiedCounts((prev) => ({ ...prev, [supplier.id]: data.count }))
+        setCopyStatus((prev) => ({ ...prev, [supplier.id]: 'done' }))
       } else {
-        console.error('copy-from-master error:', data)
+        setCopyStatus((prev) => ({ ...prev, [supplier.id]: 'error' }))
       }
-    } catch (e) {
-      console.error('Failed to copy parts:', e)
-    } finally {
-      setCopyingId(null)
-    }
+    }).catch(() => {
+      setCopyStatus((prev) => ({ ...prev, [supplier.id]: 'error' }))
+    })
   }
 
   async function geocode(address) {
@@ -371,7 +369,7 @@ export default function SetupPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 4 }}>
                 {masterSuppliers.map((supplier) => {
                   const isSelected = selectedSupplierIds.has(supplier.id)
-                  const isCopying = copyingId === supplier.id
+                  const status = copyStatus[supplier.id]
                   const count = copiedCounts[supplier.id]
                   return (
                     <div key={supplier.id}>
@@ -395,15 +393,19 @@ export default function SetupPage() {
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <p style={{ fontSize: 16, fontWeight: 600, color: '#1F2D37', margin: '0 0 2px' }}>{supplier.name}</p>
-                          <p style={{ fontSize: 13, color: '#8CA3A0', margin: 0 }}>
-                            {count != null
+                          <p style={{ fontSize: 13, color: status === 'error' ? '#D94444' : '#8CA3A0', margin: 0 }}>
+                            {status === 'copying'
+                              ? 'Adding parts to your catalogue...'
+                              : status === 'done'
                               ? `${count} parts added to your catalogue`
+                              : status === 'error'
+                              ? 'Could not load parts. You can add them later from the catalogue.'
                               : `${supplier.parts_count} parts, tagged and ready`}
                           </p>
                         </div>
                         <button
                           type="button"
-                          disabled={isCopying || isSelected}
+                          disabled={isSelected}
                           onClick={() => handleSelectSupplier(supplier)}
                           style={{
                             minHeight: 44,
@@ -415,11 +417,11 @@ export default function SetupPage() {
                             fontSize: 15,
                             fontWeight: 500,
                             cursor: isSelected ? 'default' : 'pointer',
-                            opacity: isCopying ? 0.6 : 1,
+                            opacity: 1,
                             flexShrink: 0,
                           }}
                         >
-                          {isCopying ? 'Loading...' : isSelected ? '✓ Selected' : 'Select'}
+                          {isSelected ? '✓ Selected' : 'Select'}
                         </button>
                       </div>
 
@@ -488,7 +490,7 @@ export default function SetupPage() {
           )}
           <button
             type="button"
-            disabled={saving || (step === 5 && !!copyingId)}
+            disabled={saving}
             onClick={() => saveStep(step)}
             style={{ flex: step === 1 || step === 6 ? 1 : 2, minHeight: 48, borderRadius: 10, border: 'none', background: '#22A67A', color: '#FFFFFF', fontSize: 17, fontWeight: 500, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}
           >

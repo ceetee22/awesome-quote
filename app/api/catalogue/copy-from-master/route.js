@@ -119,18 +119,11 @@ export async function POST(request) {
     return NextResponse.json({ count: 0 })
   }
 
-  // Insert in batches of 200 to stay within request size limits
-  const BATCH_SIZE = 200
-  let totalInserted = 0
-  for (let i = 0; i < toInsert.length; i += BATCH_SIZE) {
-    const batch = toInsert.slice(i, i + BATCH_SIZE)
-    const { error } = await service.from('parts').insert(batch)
-    if (error) {
-      console.error('copy-from-master: insert failed:', error.message, error.code, error.details)
-      return NextResponse.json({ error: 'Insert failed', detail: error.message }, { status: 500 })
-    }
-    totalInserted += batch.length
+  const { error: insertError } = await service.from('parts').insert(toInsert)
+  if (insertError) {
+    console.error('copy-from-master: insert failed:', insertError.message, insertError.code, insertError.details)
+    return NextResponse.json({ error: 'Insert failed', detail: insertError.message }, { status: 500 })
   }
 
-  return NextResponse.json({ count: totalInserted })
+  return NextResponse.json({ count: toInsert.length })
 }
