@@ -9,6 +9,7 @@ export default function Stepper({
   max = 99,
   step = 1,
   label,
+  formatValue = String,
 }) {
   function decrement() {
     const next = Math.max(min, value - step)
@@ -35,8 +36,8 @@ export default function Stepper({
         >
           -
         </button>
-        <span className="min-w-[3ch] text-center text-body font-medium text-aq-ink">
-          {value}
+        <span className="min-w-[3ch] text-center text-body font-medium text-aq-ink whitespace-nowrap">
+          {formatValue(value)}
         </span>
         <button
           type="button"

@@ -75,9 +75,10 @@ export default function QuotePage() {
 
   const [labourHours, setLabourHours] = useState(() => {
     const saved = currentJob?.labour_hours
-    if (saved > 0) return saved
+    if (saved != null) return saved
     if (currentJob?.estimated_duration > 0) return currentJob.estimated_duration
-    return 1
+    const hasTemplate = (currentJob?.items || []).some((i) => i.template_id)
+    return hasTemplate ? 0 : 1
   })
 
   const initFee = currentJob?.callout_fee ?? zones[0]?.fee ?? 0
@@ -724,7 +725,13 @@ export default function QuotePage() {
             <span className="text-body font-medium text-aq-ink">{formatCurrency(labourTotal)}</span>
           </div>
           <div className="flex items-center justify-between gap-aq-md">
-            <Stepper value={labourHours} onChange={setLabourHours} min={0.5} step={0.5} />
+            <Stepper
+              value={labourHours}
+              onChange={setLabourHours}
+              min={0}
+              step={0.5}
+              formatValue={(v) => v === 0 ? 'No labour' : `${v} hr`}
+            />
             <span className="text-secondary text-aq-muted shrink-0">{formatCurrency(hourlyRate)}/hr</span>
           </div>
         </div>
