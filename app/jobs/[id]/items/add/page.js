@@ -146,6 +146,9 @@ export default function AddItemPage() {
   const [itemId, setItemId] = useState(() => uuidv4())
   const [beforePhotos, setBeforePhotos] = useState([])
 
+  const [partsOnly, setPartsOnly] = useState(false)
+  const [flashPartId, setFlashPartId] = useState(null)
+
   const [step, setStep] = useState('room')
   const [skippedRoomStep, setSkippedRoomStep] = useState(false)
   const [usedRooms, setUsedRooms] = useState({}) // { roomName: itemCount }
@@ -199,6 +202,11 @@ export default function AddItemPage() {
       setJoineryType(typeParam)
       setSkippedRoomStep(true)
       setStep('fault')
+    } else if (urlParams.get('partsonly') === '1') {
+      // Fast path from review screen — skip diagnosis, go straight to catalogue search
+      setPartsOnly(true)
+      setStep('parts')
+      setShowSearch(true)
     }
     // default: step='room'
   }, [])
@@ -217,6 +225,10 @@ export default function AddItemPage() {
   // ── Navigation ────────────────────────────────────────────────────────────
 
   function handleBack() {
+    if (partsOnly) {
+      router.push(`/jobs/${params.id}/quote`)
+      return
+    }
     if (step === 'room') {
       router.push(`/jobs/${params.id}`)
     } else if (step === 'type') {
@@ -323,6 +335,19 @@ export default function AddItemPage() {
     })
   }
 
+  function addOrIncrementPart(part) {
+    if (partState[part.id]?.selected) {
+      setPartState((prev) => ({
+        ...prev,
+        [part.id]: { ...prev[part.id], qty: prev[part.id].qty + 1 },
+      }))
+      setFlashPartId(part.id)
+      setTimeout(() => setFlashPartId(null), 500)
+    } else {
+      togglePart(part)
+    }
+  }
+
   // ── Commit current item ───────────────────────────────────────────────────
 
   function commitCurrentItem() {
@@ -340,21 +365,36 @@ export default function AddItemPage() {
         supplier_code: ps.part.supplier_code,
       }))
 
-    addItem({
-      id: itemId,
-      type: 'diagnosed',
-      joinery_type: joineryType,
-      joinery_type_label: JOINERY_TYPE_LABELS[joineryType],
-      fault: faultValue,
-      fault_label: faultLabel,
-      parts: chosenParts,
-      labour_hours: 0,
-      hourly_rate: hourlyRate,
-      photos: beforePhotos,
-      room_id: selectedRoom?.id || null,
-      room_name: selectedRoom?.name || null,
-      template_id: templateInfo?.id || null,
-    })
+    if (partsOnly) {
+      addItem({
+        id: itemId,
+        type: 'parts',
+        description: 'Extra parts',
+        parts: chosenParts,
+        labour_hours: 0,
+        hourly_rate: hourlyRate,
+        photos: [],
+        room_id: null,
+        room_name: null,
+        template_id: null,
+      })
+    } else {
+      addItem({
+        id: itemId,
+        type: 'diagnosed',
+        joinery_type: joineryType,
+        joinery_type_label: JOINERY_TYPE_LABELS[joineryType],
+        fault: faultValue,
+        fault_label: faultLabel,
+        parts: chosenParts,
+        labour_hours: 0,
+        hourly_rate: hourlyRate,
+        photos: beforePhotos,
+        room_id: selectedRoom?.id || null,
+        room_name: selectedRoom?.name || null,
+        template_id: templateInfo?.id || null,
+      })
+    }
 
     setCurrentJob((prev) => prev ? { ...prev, labour_hours: labourHours, callout_fee: calloutFee } : prev)
 
@@ -536,10 +576,15 @@ export default function AddItemPage() {
     pageSubtitle = "What's the fault?"
     backLabel = 'Type'
   }
-  if (step === 'parts') {
+  if (step === 'parts' && !partsOnly) {
     pageTitle = `${JOINERY_TYPE_LABELS[joineryType]}, ${faultLabel}`
     pageSubtitle = templateInfo ? 'Standard rate loaded' : 'Suggested parts for this fault'
     backLabel = 'Fault'
+  }
+  if (partsOnly) {
+    pageTitle = 'Add a part'
+    pageSubtitle = null
+    backLabel = 'Back'
   }
 
   return (
@@ -835,8 +880,8 @@ export default function AddItemPage() {
                   </div>
                 )}
 
-                {/* Suggested parts list */}
-                {topSuggestions.length > 0 ? (
+                {/* Suggested parts list — hidden in partsOnly mode */}
+                {!partsOnly && (topSuggestions.length > 0 ? (
                   <div style={{ background: '#FFFFFF', border: '0.5px solid #E4EAE8', borderRadius: 12, overflow: 'hidden' }}>
                     {topSuggestions.map((part, idx) => {
                       const isAdded = partState[part.id]?.selected
@@ -868,16 +913,18 @@ export default function AddItemPage() {
                   <div style={{ background: '#FFFFFF', border: '0.5px solid #E4EAE8', borderRadius: 12, padding: 16, textAlign: 'center' }}>
                     <p style={{ fontSize: 15, color: '#8CA3A0', margin: 0 }}>No suggested parts for this fault.</p>
                   </div>
-                )}
+                ))}
 
-                {/* Browse full catalogue */}
-                <button
-                  type="button"
-                  onClick={() => setShowSearch((v) => !v)}
-                  style={{ fontSize: 15, color: '#22A67A', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: '0 2px', fontWeight: 500 }}
-                >
-                  {showSearch ? 'Hide catalogue search' : 'Browse full catalogue'}
-                </button>
+                {/* Browse full catalogue — hidden in partsOnly (search is always shown) */}
+                {!partsOnly && (
+                  <button
+                    type="button"
+                    onClick={() => setShowSearch((v) => !v)}
+                    style={{ fontSize: 15, color: '#22A67A', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: '0 2px', fontWeight: 500 }}
+                  >
+                    {showSearch ? 'Hide catalogue search' : 'Browse full catalogue'}
+                  </button>
+                )}
 
                 {/* Inline catalogue search */}
                 {showSearch && (
@@ -929,17 +976,17 @@ export default function AddItemPage() {
                               </div>
                               <button
                                 type="button"
-                                onClick={() => togglePart(part)}
+                                onClick={() => addOrIncrementPart(part)}
                                 style={{
                                   minHeight: 48, padding: '0 16px', fontSize: 14, fontWeight: 500,
                                   borderRadius: 8, border: '1.5px solid #22A67A',
-                                  background: isAdded ? '#22A67A' : '#FFFFFF',
+                                  background: flashPartId === part.id ? '#C5E8D5' : (isAdded ? '#22A67A' : '#FFFFFF'),
                                   color: isAdded ? '#FFFFFF' : '#22A67A',
                                   cursor: 'pointer', flexShrink: 0,
                                   transition: 'background 150ms, color 150ms',
                                 }}
                               >
-                                {isAdded ? 'Added' : 'Add'}
+                                {isAdded ? (flashPartId === part.id ? `x${partState[part.id].qty}` : 'Added') : 'Add'}
                               </button>
                             </div>
                           )
@@ -1033,7 +1080,7 @@ export default function AddItemPage() {
       {step === 'parts' && !loadingParts && (
         <div className="fixed bottom-[56px] left-0 right-0 bg-white border-t border-aq-border px-aq-lg py-aq-md">
           <div className="max-w-[480px] mx-auto flex flex-col gap-aq-sm">
-            {selectedRoom ? (
+            {!partsOnly && (selectedRoom ? (
               <>
                 <Button variant="secondary" fullWidth onClick={handleAddAnotherSameRoom}>
                   Add another to {selectedRoom.name}
@@ -1046,7 +1093,7 @@ export default function AddItemPage() {
               <Button variant="secondary" fullWidth onClick={handleAddAnotherItem}>
                 Add another item
               </Button>
-            )}
+            ))}
             <Button variant="primary" fullWidth onClick={handleReviewAndSend}>
               Review and send
             </Button>

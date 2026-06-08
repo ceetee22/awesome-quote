@@ -711,8 +711,11 @@ export default function QuotePage() {
               )}
             </div>
           )}
+          <Button variant="secondary" fullWidth onClick={() => router.push(`/jobs/${params.id}/items/add?partsonly=1`)}>
+            Add a part
+          </Button>
           <Button variant="secondary" fullWidth onClick={() => router.push(`/jobs/${params.id}/items/add`)}>
-            Add more parts
+            Add another item
           </Button>
         </div>
 
