@@ -153,6 +153,15 @@ function PartCard({ part, onAddToJob, onEdit }) {
   )
 }
 
+function fieldInputClass(hasError) {
+  return `w-full bg-white border ${hasError ? 'border-[#D94444]' : 'border-aq-border'} rounded-aq-md min-h-tap px-4 text-body text-aq-ink placeholder:text-aq-subtle focus:outline-none focus:border-aq-green transition-colors duration-150`
+}
+
+function FieldError({ msg }) {
+  if (!msg) return null
+  return <p style={{ fontSize: 14, color: '#D94444', marginTop: 4 }}>{msg}</p>
+}
+
 function AddPartForm({ onSave, onClose }) {
   const [name, setName] = useState('')
   const [sku, setSku] = useState('')
@@ -165,10 +174,15 @@ function AddPartForm({ onSave, onClose }) {
   const [fixes, setFixes] = useState([])
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(null)
+  const [fieldErrors, setFieldErrors] = useState({})
 
   const cost = parseFloat(costPrice) || 0
   const markup = parseFloat(markupPct) || 0
   const sellPrice = calcSellPrice(cost, markup)
+
+  function clearError(field) {
+    if (fieldErrors[field]) setFieldErrors((prev) => { const next = { ...prev }; delete next[field]; return next })
+  }
 
   function toggleFit(v) {
     setFits((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]))
@@ -178,7 +192,15 @@ function AddPartForm({ onSave, onClose }) {
   }
 
   async function handleSave() {
-    if (!name.trim() || !category || cost <= 0) return
+    const errors = {}
+    if (!name.trim()) errors.name = 'Part name is required'
+    if (!category) errors.category = 'Pick a category'
+    if (sellPrice <= 0) errors.sellPrice = 'Enter a sell price'
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors)
+      return
+    }
+
     setSaving(true)
     setSaveError(null)
     const result = await onSave({
@@ -198,13 +220,11 @@ function AddPartForm({ onSave, onClose }) {
       active: true,
     })
     if (result?.error) {
-      setSaveError('Could not save part. Check your connection and try again.')
+      setSaveError(result.error.message || 'Could not save part. Check your connection and try again.')
       setSaving(false)
     }
     // On success the parent closes this form
   }
-
-  const canSave = !saving && name.trim() && category && cost > 0
 
   return (
     <div className="fixed inset-0 z-50 bg-white overflow-y-auto">
@@ -233,11 +253,12 @@ function AddPartForm({ onSave, onClose }) {
               id="new-name"
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => { setName(e.target.value); clearError('name') }}
               placeholder="e.g. Sliding door roller pair"
-              className={inputClass}
+              className={fieldInputClass(!!fieldErrors.name)}
             />
-            {sku.trim() && name.toLowerCase().includes(sku.trim().toLowerCase()) && (
+            <FieldError msg={fieldErrors.name} />
+            {!fieldErrors.name && sku.trim() && name.toLowerCase().includes(sku.trim().toLowerCase()) && (
               <p className="text-caption text-aq-muted mt-aq-sm">
                 Tip: leave supplier codes out of the part name. The customer sees this name on the quote.
               </p>
@@ -293,15 +314,16 @@ function AddPartForm({ onSave, onClose }) {
 
           <div>
             <label className="block text-secondary text-aq-muted mb-aq-sm" htmlFor="new-cost">
-              Cost price (ex GST) *
+              Cost price (ex GST)
             </label>
             <input
               id="new-cost"
               type="number"
+              inputMode="decimal"
               value={costPrice}
-              onChange={(e) => setCostPrice(e.target.value)}
+              onChange={(e) => { setCostPrice(e.target.value); clearError('sellPrice') }}
               placeholder="0.00"
-              className={inputClass}
+              className={fieldInputClass(!!fieldErrors.sellPrice)}
             />
           </div>
           <div>
@@ -311,28 +333,35 @@ function AddPartForm({ onSave, onClose }) {
             <input
               id="new-markup"
               type="number"
+              inputMode="decimal"
               value={markupPct}
-              onChange={(e) => setMarkupPct(e.target.value)}
-              className={inputClass}
+              onChange={(e) => { setMarkupPct(e.target.value); clearError('sellPrice') }}
+              className={fieldInputClass(!!fieldErrors.sellPrice)}
             />
-            {cost > 0 && (
+            {sellPrice > 0 ? (
               <p className="text-secondary font-medium text-aq-green mt-aq-sm">
                 Sell price: {formatCurrency(sellPrice)}
               </p>
+            ) : (
+              <FieldError msg={fieldErrors.sellPrice} />
             )}
           </div>
 
           <div>
-            <p className="text-secondary text-aq-muted mb-aq-sm">Category *</p>
+            <p className={`text-secondary mb-aq-sm ${fieldErrors.category ? 'text-[#D94444]' : 'text-aq-muted'}`}>
+              Category *
+            </p>
             <div className="flex flex-wrap gap-aq-sm">
               {CATEGORIES.map((c) => (
                 <button
                   key={c}
                   type="button"
-                  onClick={() => setCategory(c)}
+                  onClick={() => { setCategory(c); clearError('category') }}
                   className={`min-h-tap px-aq-lg text-secondary font-medium rounded-aq-lg border transition-colors duration-150 ${
                     category === c
                       ? 'border-aq-green bg-aq-green-tint text-aq-green'
+                      : fieldErrors.category
+                      ? 'border-[#D94444] text-aq-muted bg-white'
                       : 'border-aq-border text-aq-muted bg-white hover:bg-aq-surface'
                   }`}
                 >
@@ -340,6 +369,7 @@ function AddPartForm({ onSave, onClose }) {
                 </button>
               ))}
             </div>
+            <FieldError msg={fieldErrors.category} />
           </div>
 
           <div>
@@ -376,9 +406,9 @@ function AddPartForm({ onSave, onClose }) {
 
         <div className="mt-aq-2xl">
           {saveError && (
-            <p className="text-secondary text-[#D94444] mb-aq-md">{saveError}</p>
+            <p style={{ fontSize: 14, color: '#D94444', marginBottom: 12 }}>{saveError}</p>
           )}
-          <Button variant="primary" fullWidth disabled={!canSave} onClick={handleSave}>
+          <Button variant="primary" fullWidth disabled={saving} onClick={handleSave}>
             {saving ? 'Saving...' : 'Save part'}
           </Button>
         </div>
