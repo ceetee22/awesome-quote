@@ -6,18 +6,7 @@ import { useJob } from '@/lib/job-context'
 import { useSettings } from '@/lib/settings-context'
 import StatusBadge from '@/components/StatusBadge'
 import { getPartsCount, getRepairTemplatesCount, updateBusiness } from '@/lib/db'
-
-// ─── Helpers ───────────────────────────────────────────────────────────────────
-
-function buildNavUrl(address, navApp) {
-  const enc = encodeURIComponent(address)
-  switch (navApp) {
-    case 'apple_maps': return `https://maps.apple.com/?daddr=${enc}`
-    case 'waze': return `https://waze.com/ul?q=${enc}&navigate=yes`
-    case 'system_default': return `geo:0,0?q=${enc}`
-    default: return `https://www.google.com/maps/dir/?api=1&destination=${enc}`
-  }
-}
+import { buildNavUrl } from '@/lib/navigation'
 
 function getGreeting() {
   const h = new Date().getHours()

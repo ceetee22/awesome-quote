@@ -262,7 +262,7 @@ export default function SettingsPage() {
 
   const hourlyRate = settings.hourly_labour_rate ? `$${settings.hourly_labour_rate}/hr` : null
   const zoneCount = (settings.callout_zones || []).length
-  const navApp = NAV_APP_LABELS[settings.nav_app || 'google_maps']
+  const navApp = NAV_APP_LABELS[settings.preferred_nav_app || 'google_maps']
 
   return (
     <>

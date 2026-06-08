@@ -27,7 +27,7 @@ export default function NavigationPage() {
 
   async function handleSave() {
     setSaveStatus('saving')
-    updateSettings({ nav_app: selected })
+    updateSettings({ preferred_nav_app: selected })
     setSaveStatus('saved')
     setTimeout(() => setSaveStatus(null), 2500)
   }

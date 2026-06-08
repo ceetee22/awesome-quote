@@ -25,6 +25,7 @@ import {
 } from '@/lib/db'
 import { useSettings } from '@/lib/settings-context'
 import { formatCurrency } from '@/lib/pricing'
+import { buildNavUrl } from '@/lib/navigation'
 
 // ─── Grid constants ────────────────────────────────────────────────────────────
 
@@ -813,6 +814,7 @@ function DropModal({ job, date, dayJobs, plannerSettings, dayWeather, initialSta
 // ─── Job detail panel ─────────────────────────────────────────────────────────
 
 function JobDetailPanel({ job, pos, onClose }) {
+  const { settings } = useSettings()
   const value = calcJobValue(job)
   const items = job.job_items || []
   const panelW = 280
@@ -877,7 +879,7 @@ function JobDetailPanel({ job, pos, onClose }) {
         {job.customer_address && (
           <div style={{ marginBottom: 10 }}>
             <a
-              href={`https://maps.google.com/?q=${encodeURIComponent(job.customer_address)}`}
+              href={buildNavUrl(job.customer_address, settings?.preferred_nav_app)}
               target="_blank"
               rel="noreferrer"
               style={{ display: 'inline-flex', alignItems: 'flex-start', gap: 5, fontSize: 13, color: '#1D6DBF', textDecoration: 'none', lineHeight: 1.4 }}

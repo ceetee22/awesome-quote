@@ -10,6 +10,7 @@ import {
   JOINERY_TYPE_LABELS,
   FAULT_OPTIONS,
 } from '@/lib/constants'
+import { buildNavUrl } from '@/lib/navigation'
 import { formatCurrency, calcGst } from '@/lib/pricing'
 import { generateQuotePdf, downloadBlob } from '@/lib/generate-quote-pdf'
 import { uploadPhoto } from '@/lib/upload-photo'
@@ -234,17 +235,8 @@ export default function JobDetailPage() {
   const profit       = quoteSubtotal - partsGrossCost
   const profitMargin = quoteSubtotal > 0 ? profit / quoteSubtotal : 0
 
-  const navApp = settings?.preferred_nav_app || 'google_maps'
   const mapsUrl = currentJob.customer_address
-    ? (() => {
-        const enc = encodeURIComponent(currentJob.customer_address)
-        switch (navApp) {
-          case 'apple_maps': return `https://maps.apple.com/?daddr=${enc}`
-          case 'waze': return `https://waze.com/ul?q=${enc}&navigate=yes`
-          case 'system_default': return `geo:0,0?q=${enc}`
-          default: return `https://www.google.com/maps/dir/?api=1&destination=${enc}`
-        }
-      })()
+    ? buildNavUrl(currentJob.customer_address, settings?.preferred_nav_app)
     : null
 
   // ── Handlers ────────────────────────────────────────────────────────────────

@@ -13,6 +13,7 @@ import {
   dbAssignJob,
 } from '@/lib/db'
 import { IconSun, IconCloudRain, IconCloud, IconWind } from '@tabler/icons-react'
+import { buildNavUrl } from '@/lib/navigation'
 
 // ─── Date helpers ──────────────────────────────────────────────────────────────
 
@@ -60,16 +61,6 @@ function getArea(address) {
   if (!address) return ''
   const parts = address.split(',')
   return parts[parts.length - 1].trim()
-}
-
-function buildNavUrl(address, navApp) {
-  const enc = encodeURIComponent(address)
-  switch (navApp) {
-    case 'apple_maps': return `https://maps.apple.com/?daddr=${enc}`
-    case 'waze': return `https://waze.com/ul?q=${enc}&navigate=yes`
-    case 'system_default': return `geo:0,0?q=${enc}`
-    default: return `https://www.google.com/maps/dir/?api=1&destination=${enc}`
-  }
 }
 
 // ─── Job helpers ───────────────────────────────────────────────────────────────
