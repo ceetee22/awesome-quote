@@ -163,6 +163,8 @@ function AddPartForm({ onSave, onClose }) {
   const [unit, setUnit] = useState('each')
   const [fits, setFits] = useState([])
   const [fixes, setFixes] = useState([])
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState(null)
 
   const cost = parseFloat(costPrice) || 0
   const markup = parseFloat(markupPct) || 0
@@ -175,9 +177,11 @@ function AddPartForm({ onSave, onClose }) {
     setFixes((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]))
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!name.trim() || !category || cost <= 0) return
-    onSave({
+    setSaving(true)
+    setSaveError(null)
+    const result = await onSave({
       id: uuidv4(),
       sku: sku.trim(),
       name: name.trim(),
@@ -193,9 +197,14 @@ function AddPartForm({ onSave, onClose }) {
       unit,
       active: true,
     })
+    if (result?.error) {
+      setSaveError('Could not save part. Check your connection and try again.')
+      setSaving(false)
+    }
+    // On success the parent closes this form
   }
 
-  const canSave = name.trim() && category && cost > 0
+  const canSave = !saving && name.trim() && category && cost > 0
 
   return (
     <div className="fixed inset-0 z-50 bg-white overflow-y-auto">
@@ -366,8 +375,11 @@ function AddPartForm({ onSave, onClose }) {
         </div>
 
         <div className="mt-aq-2xl">
+          {saveError && (
+            <p className="text-secondary text-[#D94444] mb-aq-md">{saveError}</p>
+          )}
           <Button variant="primary" fullWidth disabled={!canSave} onClick={handleSave}>
-            Save part
+            {saving ? 'Saving...' : 'Save part'}
           </Button>
         </div>
 
@@ -605,10 +617,13 @@ function CatalogueContent() {
     return matchesSearch && matchesCategory
   })
 
-  function handleSavePart(newPart) {
-    setParts((prev) => [...prev, newPart])
+  async function handleSavePart(newPart) {
+    const { data, error } = await createPart(newPart)
+    if (error) return { error }
+    // Use the DB-returned row so business_id and any server defaults are correct
+    setParts((prev) => [...prev, data || newPart])
     setAddFormOpen(false)
-    createPart(newPart)
+    return { error: null }
   }
 
   function handleEditSave(updatedPart) {
