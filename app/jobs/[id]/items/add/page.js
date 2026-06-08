@@ -511,7 +511,8 @@ export default function AddItemPage() {
   const searchResults = showSearchResults
     ? allParts
         .filter((p) => {
-          if (!p.active || topSuggestionIds.has(p.id)) return false
+          // Keep selected parts in search so the user can re-tap Add to increment qty
+          if (!p.active || (topSuggestionIds.has(p.id) && !partState[p.id]?.selected)) return false
           if (searchCategory && p.category !== searchCategory) return false
           if (searchQuery.trim()) {
             const q = searchQuery.toLowerCase()
@@ -893,17 +894,17 @@ export default function AddItemPage() {
                           </div>
                           <button
                             type="button"
-                            onClick={() => togglePart(part)}
+                            onClick={() => addOrIncrementPart(part)}
                             style={{
                               minHeight: 48, padding: '0 16px', fontSize: 14, fontWeight: 500,
-                              borderRadius: 8, border: `1.5px solid ${isAdded ? '#22A67A' : '#22A67A'}`,
-                              background: isAdded ? '#22A67A' : '#FFFFFF',
+                              borderRadius: 8, border: '1.5px solid #22A67A',
+                              background: flashPartId === part.id ? '#C5E8D5' : (isAdded ? '#22A67A' : '#FFFFFF'),
                               color: isAdded ? '#FFFFFF' : '#22A67A',
                               cursor: 'pointer', flexShrink: 0,
                               transition: 'background 150ms, color 150ms',
                             }}
                           >
-                            {isAdded ? 'Added' : 'Add'}
+                            {isAdded ? (flashPartId === part.id ? `x${partState[part.id].qty}` : 'Added') : 'Add'}
                           </button>
                         </div>
                       )
